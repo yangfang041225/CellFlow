@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Button, Callout, FormGroup, HTMLSelect, HTMLTable, InputGroup, ProgressBar, Spinner, Switch, Tag,
+  Button, Callout, Checkbox, Dialog, FormGroup, HTMLSelect, HTMLTable, InputGroup, ProgressBar, Spinner, Switch, Tag,
 } from '@blueprintjs/core';
 import { api, Dataset, Inspect, Meta } from '../services/api';
 import { createTracker, isAbortError } from '../services/async';
@@ -31,6 +31,10 @@ export function DataView(props: {
   const [publicId, setPublicId] = useState('');
   const [publicSource, setPublicSource] = useState<'geo' | 'cellxgene'>('geo');
   const [download, setDownload] = useState<DownloadStatus | null>(null);
+  const [preview, setPreview] = useState<null | { id: string; data: Record<string, any> }>(null);
+  const [orientation, setOrientation] = useState('cells_by_genes');
+  const [metaCols, setMetaCols] = useState<string[]>([]);
+  const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const inspectTracker = useRef(createTracker()).current;
 
@@ -128,12 +132,38 @@ export function DataView(props: {
 
   const upload = async (file: File) => {
     try {
+      if (/\.(csv|tsv|txt)$/i.test(file.name)) {
+        const body = await api.tablePreview(file);
+        setPreview({ id: body.preview_id, data: body.preview });
+        setOrientation(body.preview.orientation_guess || 'cells_by_genes');
+        setMetaCols(body.preview.metadata_candidates || []);
+        notify('warn', '表格已预览：请确认方向与元数据列后再导入（不会自动猜）');
+        return;
+      }
       const result = await api.upload(file);
       notify('ok', `已导入：${result.path}`);
       refresh();
       onSelect(result.id);
     } catch (exc) {
       notify('bad', `导入失败：${exc}`);
+    }
+  };
+
+  const confirmImport = async () => {
+    if (!preview) return;
+    setImporting(true);
+    try {
+      const result = await api.tableImport({
+        preview_id: preview.id, orientation, metadata_columns: metaCols,
+      });
+      notify('ok', `已导入：${result.name}（${result.n_cells} 细胞 × ${result.n_genes} 基因）`);
+      setPreview(null);
+      refresh();
+      onSelect(result.id);
+    } catch (exc) {
+      notify('bad', `确认导入失败：${exc}`);
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -326,6 +356,48 @@ export function DataView(props: {
           ) : (!loading && !error ? <Callout compact>尚未选择数据集。</Callout> : null)}
         </div>
       </div>
+
+      <Dialog isOpen={!!preview} onClose={() => setPreview(null)} title="确认表格导入"
+              style={{ width: 'min(560px, 92vw)' }}>
+        <div className="cf-dialog-body" style={{ padding: 14 }}>
+          {preview ? (
+            <>
+              <Callout compact intent="warning" style={{ marginBottom: 10 }}>
+                方向与元数据列不会自动替换你的选择；缺失/非数值表达会被拒绝。
+                预览：{preview.data.rows_sampled} 行 × {preview.data.columns} 列，
+                样本缺失 {preview.data.missing_in_sample} 个，表头重复 {preview.data.header_duplicates} 个。
+                推断理由：{preview.data.orientation_reason}
+              </Callout>
+              <FormGroup label="表格方向">
+                <HTMLSelect fill value={orientation} onChange={(event) => setOrientation(event.currentTarget.value)}>
+                  <option value="cells_by_genes">细胞 × 基因（行是细胞，列是基因）</option>
+                  <option value="genes_by_cells">基因 × 细胞（行是基因，列是细胞，会转置）</option>
+                </HTMLSelect>
+              </FormGroup>
+              <FormGroup label="元数据列（不参与表达矩阵）">
+                {(preview.data.metadata_candidates || []).length
+                  ? (preview.data.metadata_candidates || []).map((column: string) => (
+                    <Checkbox key={column} checked={metaCols.includes(column)}
+                              label={column}
+                              onChange={(event) => {
+                                const checked = event.currentTarget.checked;
+                                setMetaCols((current) => checked
+                                  ? [...current, column]
+                                  : current.filter((item) => item !== column));
+                              }} />
+                  ))
+                  : <div className="cf-sub">未发现文档列出的元数据列；如需注释，请放入 h5ad 的 obs。</div>}
+              </FormGroup>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+                <Button onClick={() => setPreview(null)}>取消</Button>
+                <Button intent="primary" loading={importing} onClick={() => void confirmImport()}>
+                  确认导入
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </Dialog>
     </div>
   );
 }

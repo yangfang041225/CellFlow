@@ -573,6 +573,100 @@ def runs(state: str = '', method: str = '', dataset: str = '', q: str = '', limi
             'offset': offset, 'has_more': offset + len(items) < total}
 
 
+class TableImportBody(BaseModel):
+    preview_id: str
+    orientation: str = 'cells_by_genes'
+    metadata_columns: list[str] = []
+
+
+@app.post('/api/datasets/table-preview')
+async def table_preview(file: UploadFile):
+    """上传 CSV/TSV 到隔离预览区，返回方向/元数据/缺失统计；不改源文件。"""
+    import uuid
+    from .importers import preview_table
+
+    filename = file.filename or 'data.csv'
+    suffix = Path(filename).suffix.lower()
+    if suffix not in ('.csv', '.tsv', '.txt'):
+        raise HTTPException(415, '仅支持 CSV / TSV / TXT 表格预览')
+    preview_dir = ROOT / 'results' / 'inputs' / '.preview'
+    preview_dir.mkdir(parents=True, exist_ok=True)
+    token = uuid.uuid4().hex
+    target = preview_dir / f'{token}{suffix}'
+    total = 0
+    try:
+        with open(target, 'wb') as handle:
+            while True:
+                chunk = await file.read(4 * 1024 * 1024)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > MAX_UPLOAD_BYTES:
+                    raise HTTPException(413, '文件超过上传上限')
+                handle.write(chunk)
+        if total == 0:
+            raise HTTPException(400, '文件为空')
+        preview = preview_table(target)
+        (preview_dir / f'{token}.json').write_text(
+            json.dumps({'filename': filename}, ensure_ascii=False), encoding='utf-8')
+    except HTTPException:
+        target.unlink(missing_ok=True)
+        raise
+    except Exception as exc:
+        target.unlink(missing_ok=True)
+        raise HTTPException(400, f'无法预览表格：{type(exc).__name__}: {exc}')
+    return {'preview_id': token, 'preview': preview}
+
+
+@app.post('/api/datasets/table-import')
+def table_import(body: TableImportBody):
+    """按用户确认的方向/元数据列导入，转换为 h5ad 后登记。"""
+    from .importers import import_with_options
+    from .data import to_anndata
+    import hashlib
+
+    if body.orientation not in ('cells_by_genes', 'genes_by_cells'):
+        raise HTTPException(400, '方向必须是 cells_by_genes 或 genes_by_cells')
+    token = ''.join(ch for ch in body.preview_id if ch.isalnum())
+    preview_dir = ROOT / 'results' / 'inputs' / '.preview'
+    matches = [item for item in preview_dir.glob(token + '.*')
+               if item.suffix.lower() in ('.csv', '.tsv', '.txt')] if token else []
+    if len(matches) != 1:
+        raise HTTPException(404, '预览文件不存在或已过期，请重新上传预览')
+    source = matches[0]
+    meta_path = preview_dir / f'{token}.json'
+    original_name = source.name
+    if meta_path.is_file():
+        try:
+            original_name = json.loads(meta_path.read_text(encoding='utf-8')).get('filename') or original_name
+        except Exception:
+            pass
+    try:
+        result = import_with_options(source, orientation=body.orientation,
+                                     metadata_columns=list(body.metadata_columns))
+    except Exception as exc:
+        raise HTTPException(400, f'导入失败：{type(exc).__name__}: {exc}')
+    data = result.dataset
+    digest = hashlib.sha256()
+    with open(source, 'rb') as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+            digest.update(chunk)
+    digest.update(str(body.orientation).encode('ascii'))
+    digest.update(json.dumps(sorted(body.metadata_columns)).encode('utf-8'))
+    target = ROOT / 'results' / 'inputs' / (digest.hexdigest()[:16] + '.h5ad')
+    try:
+        to_anndata(data).write_h5ad(target)
+    except Exception as exc:
+        raise HTTPException(500, f'保存转换结果失败：{type(exc).__name__}: {exc}')
+    source.unlink(missing_ok=True)
+    meta_path.unlink(missing_ok=True)
+    workspace.register_dataset(target, name=original_name, source='上传（已确认方向）')
+    return {'ok': True, 'path': str(target), 'id': _dataset_id(target),
+            'name': original_name, 'n_cells': int(len(data.cells)),
+            'n_genes': int(len(data.genes)), 'notes': result.notes,
+            'transposed': bool(result.transposed)}
+
+
 class RenameBody(BaseModel):
     name: str
 

@@ -231,7 +231,55 @@ def _strict_expression(frame):
     return numeric
 
 
-def _from_table_streaming(path: Path, sep: str, chunk_rows: int = 4000, flipped=None) -> ImportResult:
+def preview_table(path: Path, sample_rows: int = 200) -> dict:
+    """读取表头与小样本，返回方向推断、数值/元数据列、缺失与重复统计。
+
+    只读，不修改源文件；用于导入前让用户确认，而不是静默猜测。
+    """
+    import pandas as pd
+
+    path = Path(path)
+    sep = ',' if '.csv' in path.name.lower() else '\t'
+    head = pd.read_csv(path, sep=sep, index_col=0, nrows=sample_rows, low_memory=False)
+    gene_rows, cell_rows = _axes_kind(head.index)
+    gene_cols, cell_cols = _axes_kind(head.columns)
+    if cell_cols - gene_cols > 0.3 and gene_rows - cell_rows > 0.3:
+        orientation, confidence, reason = 'genes_by_cells', 'high', '行更像基因、列更像细胞'
+    elif gene_cols - cell_cols > 0.3 and cell_rows - gene_rows > 0.3:
+        orientation, confidence, reason = 'cells_by_genes', 'high', '行更像细胞、列更像基因'
+    else:
+        flipped = _shape_hint(head.shape[0], head.shape[1])
+        orientation = 'genes_by_cells' if flipped else 'cells_by_genes'
+        confidence, reason = 'low', '表头不足以判定，按行列数形状推断；请人工确认'
+    metadata = [str(c) for c in _table_metadata_columns(head)]
+    numeric_columns = [str(c) for c in head.columns if str(c) not in metadata]
+    numeric = head[numeric_columns].apply(pd.to_numeric, errors='coerce')
+    return {
+        'file': path.name,
+        'rows_sampled': int(head.shape[0]),
+        'columns': int(head.shape[1]),
+        'orientation_guess': orientation,
+        'orientation_confidence': confidence,
+        'orientation_reason': reason,
+        'metadata_candidates': metadata,
+        'numeric_columns_sample': numeric_columns[:10],
+        'numeric_column_count': len(numeric_columns),
+        'missing_in_sample': int(numeric.isna().sum().sum()),
+        'header_duplicates': _header_extra_duplicates(path, sep),
+        'note': '预览只读；确认后才会写入计算结果，源文件不会被修改。',
+    }
+
+
+def import_with_options(path: Path, orientation=None, metadata_columns=None):
+    """显式方向/元数据列导入；orientation 取 cells_by_genes / genes_by_cells。"""
+    suffix = Path(path).suffix.lower()
+    if suffix in ('.csv', '.tsv', '.txt'):
+        return from_table(path, orientation=orientation, metadata_columns=metadata_columns)
+    return import_any(path)
+
+
+def _from_table_streaming(path: Path, sep: str, chunk_rows: int = 4000, flipped=None,
+                          metadata_columns=None) -> ImportResult:
     """大表分块读取：逐块转 float32 稀疏再 vstack，避免整表 DataFrame + 稠密矩阵双份峰值。"""
     import anndata as ad
     import pandas as pd
@@ -323,8 +371,8 @@ def _from_table_streaming(path: Path, sep: str, chunk_rows: int = 4000, flipped=
     return result
 
 
-def from_table(path: Path) -> ImportResult:
-    """CSV/TSV：自动识别表头与方向（细胞×基因 / 基因×细胞都行）。"""
+def from_table(path: Path, orientation=None, metadata_columns=None) -> ImportResult:
+    """CSV/TSV：可显式指定方向与元数据列；未指定时才推断。"""
     import anndata as ad
     import pandas as pd
     from scipy import sparse
@@ -332,7 +380,10 @@ def from_table(path: Path) -> ImportResult:
     sep = ',' if '.csv' in path.name.lower() else '\t'
     import os as _os
     if path.stat().st_size > 32 * 1024 * 1024 or _os.environ.get('CELLFLOW_STREAM_CSV') == '1':
-        return _from_table_streaming(path, sep)
+        return _from_table_streaming(
+            path, sep,
+            flipped=None if orientation is None else orientation == 'genes_by_cells',
+            metadata_columns=metadata_columns)
     frame = pd.read_csv(path, sep=sep, index_col=0, low_memory=False)
     from .memory import estimate
     info = estimate(path)
@@ -344,18 +395,30 @@ def from_table(path: Path) -> ImportResult:
     # 先看行列名字像什么：行是基因、列是细胞 → 转置
     gene_rows, cell_rows = _axes_kind(frame.index)
     gene_cols, cell_cols = _axes_kind(frame.columns)
-    flipped = False
-    if cell_cols - gene_cols > 0.3 and gene_rows - cell_rows > 0.3:
-        flipped = True
-    elif gene_cols - cell_cols > 0.3 and cell_rows - gene_rows > 0.3:
-        flipped = False
+    if orientation in ('cells_by_genes', 'genes_by_cells'):
+        flipped = orientation == 'genes_by_cells'
+        notes.append('方向由用户确认：' + ('基因×细胞' if flipped else '细胞×基因'))
     else:
-        flipped = _shape_hint(frame.shape[0], frame.shape[1])
+        flipped = False
+        if cell_cols - gene_cols > 0.3 and gene_rows - cell_rows > 0.3:
+            flipped = True
+        elif gene_cols - cell_cols > 0.3 and cell_rows - gene_rows > 0.3:
+            flipped = False
+        else:
+            flipped = _shape_hint(frame.shape[0], frame.shape[1])
+            notes.append('方向为自动推断（置信度低）；建议在导入前人工确认')
     if flipped:
         frame = frame.T
         notes.append('原表是“基因 × 细胞”，已自动转置为“细胞 × 基因”。')
 
-    meta_cols = _table_metadata_columns(frame)
+    if metadata_columns is not None:
+        missing = [str(c) for c in metadata_columns if str(c) not in frame.columns]
+        if missing:
+            raise ValueError('指定的元数据列不存在：' + '、'.join(missing))
+        meta_cols = [str(c) for c in metadata_columns]
+        notes.append('元数据列由用户确认：' + '、'.join(meta_cols) if meta_cols else '用户确认无元数据列')
+    else:
+        meta_cols = _table_metadata_columns(frame)
     meta = frame[meta_cols].copy() if meta_cols else None
     num = frame.drop(columns=meta_cols)
     if num.shape[1] < 5:

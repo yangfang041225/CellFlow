@@ -122,6 +122,24 @@ export const api = {
       method: 'POST', body: form,
     });
   },
+  tablePreview: async (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request<{
+      preview_id: string;
+      preview: {
+        file: string; rows_sampled: number; columns: number;
+        orientation_guess: string; orientation_confidence: string; orientation_reason: string;
+        metadata_candidates: string[]; numeric_column_count: number;
+        missing_in_sample: number; header_duplicates: number; note: string;
+      };
+    }>('/api/datasets/table-preview', { method: 'POST', body: form });
+  },
+  tableImport: (body: { preview_id: string; orientation: string; metadata_columns: string[] }) =>
+    request<{ ok: boolean; path: string; id: string; name: string; n_cells: number; n_genes: number; notes: string[] }>(
+      '/api/datasets/table-import',
+      { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } },
+    ),
   demo: () => request<{ ok: boolean; path: string; id: string }>('/api/datasets/demo', { method: 'POST' }),
   publicFetch: (source: string, identifier: string) =>
     request<{ ok: boolean; files: string[] }>('/api/datasets/public', {
