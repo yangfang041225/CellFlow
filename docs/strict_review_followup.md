@@ -8,7 +8,7 @@
 2. CSV 大小文件路径共用严格表达值检查，拒绝缺失、文本和无穷值（含 float32 溢出）。不再将含坏值的基因列悄悄当元数据。显式元数据列名为 group、cluster、batch、sample、cell_type、celltype、condition、donor、barcode、cell_id、label、cell、time；其他文本列默认拒绝，请将任意复杂元数据放入 h5ad 的 obs。分块读取元数据空值保留 None，并保证异常时关闭读取器。公开数据 CSV 转换也不再填零。
 3. PID 创建时间未知/无效时不杀进程，修正 64 位 Windows HANDLE 声明，身份容差从两秒缩至微秒。Windows 每任务具名 Job Object，wrapper 先加入受控对象、完成握手，再启动 CLI；子孙默认继承，禁止 breakaway，关闭父持有句柄自动终止任务树。取消不杀 supervisor；缺少 Job Object 的旧任务拒绝强杀，等待 supervisor 收尾或人工核验。未确认退出不释放运行名额。
 4. veloVI `converged=null`、`convergence_status=not_assessed`，独立记录是否耗尽训练预算及损失历史；非有限损失拒绝。后验均值不是零方差：形状不符或采样不可用时不输出不确定性文件，记录原因；样本标准差验证维度和有限性。这些仍不是收敛性或生物学正确性的证明。
-5. 新增已知解析解的多终末类别回归；增加真实 h5ad 只读 QC 验收入口，以及生产 Qt 壳 + 已构建 React 五视图点击/布局/截图验收入口。CI 增加 Qt/React 检查和证据上传。导航验收不等于覆盖文件选择器、长任务取消、报告下载等完整用户旅程。
+5. 新增已知解析解的多终末类别回归；增加真实 h5ad 只读 QC 验收入口，以及生产 Qt 壳 + 已构建 React 五视图点击/布局/截图验收入口。已准备 CI Qt/React 检查和证据上传补丁，但当前 OAuth 凭据缺少 workflow scope，GitHub 拒绝推送工作流；该补丁仅保留本地，PR 尚不含此 CI 变更。导航验收不等于覆盖文件选择器、长任务取消、报告下载等完整用户旅程。
 6. 任务详情/改名/删除/取消及下载状态/取消检查当前项目。公开库的隐藏状态按项目保存，兼容旧全局列表到 default 项目；关联移除不删除源文件。单机项目作用域不构成多用户鉴权。
 7. HTML CSP 移除显式 `file:` 图片许可；清洗器拒绝 file URL、图片绝对路径、父目录遍历及远程协议，保留本地相对图片和受限 data 图片。旧报告不自动改写。
 
