@@ -19,7 +19,7 @@
 .venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-结果：**Ran 278 tests in 206.589 s — OK**（2026-10-25 22:05）。
+结果：**Ran 282 tests in 211.334 s — OK**（2026-10-25 22:05）。
 
 | 测试文件 | 数量 | 覆盖 |
 |---|---|---|

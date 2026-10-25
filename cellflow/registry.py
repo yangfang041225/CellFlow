@@ -296,6 +296,61 @@ def env_python(method_or_key, root=None):
     return candidate if candidate.exists() else None
 
 
+_HEALTH_TTL = 6 * 3600
+
+
+def _health_file(root=None):
+    from pathlib import Path
+    root = Path(root) if root else Path(__file__).resolve().parents[1]
+    return root / 'results' / 'isolated-health.json'
+
+
+def _probe_ready(python, packages, root=None, timeout=25):
+    """真实 import 隔离环境；结果缓存 6 小时，避免每次状态查询都起子进程。"""
+    import json
+    import subprocess
+    import sys
+    import time
+    from pathlib import Path
+
+    mapping = {'scvi-tools': 'scvi', 'scikit-learn': 'sklearn', 'pytorch': 'torch'}
+    modules = [mapping.get(name, name) for name in (packages or [])]
+    key = str(Path(python).resolve()) + '|' + ','.join(modules)
+    path = _health_file(root)
+    cache = {}
+    try:
+        cache = json.loads(path.read_text(encoding='utf-8'))
+    except Exception:
+        cache = {}
+    entry = cache.get(key)
+    if entry and time.time() - float(entry.get('checked', 0)) < _HEALTH_TTL:
+        return bool(entry.get('ok'))
+    code = ('import importlib.util, json, sys\n'
+            'result = {}\n'
+            'for name in json.loads(sys.argv[1]):\n'
+            '    try:\n'
+            '        spec = importlib.util.find_spec(name)\n'
+            '        result[name] = bool(spec is not None)\n'
+            '    except Exception:\n'
+            '        result[name] = False\n'
+            'print(json.dumps(result))\n')
+    try:
+        proc = subprocess.run([str(python), '-c', code, json.dumps(modules)],
+                              capture_output=True, text=True, timeout=timeout,
+                              encoding='utf-8', errors='replace',
+                              creationflags=0x08000000 if sys.platform == 'win32' else 0)
+        ok = proc.returncode == 0 and 'false' not in (proc.stdout or '').lower()
+    except Exception:
+        ok = False
+    cache[key] = {'ok': ok, 'checked': time.time()}
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding='utf-8')
+    except Exception:
+        pass
+    return ok
+
+
 def isolated_ready(method_or_key):
     """隔离环境是否已就绪（存在解释器，且有对应的依赖锁文件）。"""
     method = INDEX[method_or_key] if isinstance(method_or_key, str) else method_or_key
@@ -304,8 +359,12 @@ def isolated_ready(method_or_key):
     if env_python(method) is None:
         return False
     from pathlib import Path
-    lock = Path(__file__).resolve().parents[1] / ('environment-' + method.runtime_env.lstrip('.') + '.lock.txt')
-    return lock.exists()
+    root = Path(__file__).resolve().parents[1]
+    lock = root / ('environment-' + method.runtime_env.lstrip('.') + '.lock.txt')
+    if not lock.exists():
+        return False
+    packages = list(getattr(method, 'packages', {}) or {})
+    return _probe_ready(env_python(method), packages, root=root)
 
 
 def status_of(method, versions=None):

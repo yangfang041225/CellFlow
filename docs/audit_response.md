@@ -39,7 +39,7 @@
 | F31 异步状态 | 已修 | 请求 token/AbortController、草稿版本、日志持续刷新、下载记录恢复 | 前端逻辑冒烟；未做真实延迟注入 |
 | F32 测试流程 | 部分 | 新增夹具生成任务、重复定义/文档链接检查、CI 前后端 | 无浏览器 E2E/覆盖率基线；CI 中 veloVI 等环境项跳过 |
 | F33 历史规模 | 已修 | runs 服务端 limit/offset/total；单行查询；日志尾读；counts 聚合；详情默认压缩大数组（`?compact=0` 取完整） | `test_api_pagination`（分页/尾读/压缩用例）；未做前端虚拟滚动 |
-| F34 环境发布 | 部分 | `install.py --check` 真实 import/版本；隔离环境自身解释器探测；manifest | registry 运行时仍未消费 manifest；无签名安装器 |
+| F34 环境发布 | 部分 | `install.py --check` 真实 import/版本；registry 运行时用隔离解释器做 spec 探测并缓存 6h；manifest | manifest 未作为 registry 唯一来源；无签名安装器 |
 | F35 窗口/DPI | 部分 | 按 availableGeometry 收敛；980 宽单栏/工具栏收纳；实测 1180/980 无横向溢出 | 125/150/200% 原生多屏矩阵未系统实测 |
 | F36 多入口文档 | 已修 | README 只推荐 Qt；历史入口边界表；页面名/端口修正 | 链接检查通过 |
 | F37 复现包 | 部分 | 报告包 vs 复现包；哈希清单 + REPRODUCE.md；full 含 ≤200 MB 输入与 ≤200 MB 模型目录 | 超大输入仍只记哈希 |
