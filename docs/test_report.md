@@ -19,7 +19,7 @@
 .venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-结果：**Ran 143 tests in 99.868 s — OK**（2026-10-25 16:50）。
+结果：**Ran 272 tests in 206.864 s — OK**（2026-10-25 21:52）。
 
 | 测试文件 | 数量 | 覆盖 |
 |---|---|---|
@@ -135,3 +135,20 @@ npm run build        # ✓ built in ~6 s；有 >500 kB chunk 警告
   这是“CI 与 requirements 一致”尚未完全收口的地方，已按现状记录，不假装已解决。
 - CI 使用 `.venv`（由 workflow 创建）运行测试，因此 `test_desktop.py::InstallCheck` 的 `install.py --check` 能真实执行；
   但 `.venv-velovi` / `.venv-regvelo` 不在 CI 中安装，隔离环境相关测试会跳过。
+
+## 审计项目书落实
+
+审计（`CellFlow_全面审查与修改项目书.md`，F01–F40）的逐项状态见 [审计落实对照](audit_response.md)。
+本次新增/加强的回归集中在：
+
+- `tests/test_archive.py`（7）：路径穿越、盘符/UNC、链接、限额
+- `tests/test_queue_lifecycle.py`（24）：进程树取消、并发上限、跨项目去重、心跳/恢复
+- `tests/test_data_contract.py`（4）：缺失/重复记录、AnnData 轴、缺失分组
+- `tests/test_science_contract.py`（13）：veloVI Ms/Mu、预处理声明、RegVelo 实验性
+- `tests/test_figures_semantics.py`（28）：仿射箭头、PAGA 对称、图注/执行步骤、ZIP、PDF
+- `tests/test_html_safety.py`（11）：转义/清洗/CSP
+- `tests/test_compare_contract.py`（6）、`tests/test_api_pagination.py`（4）
+- `tests/test_downloads_persistence.py`（5）、`tests/test_dataset_identity.py`（3）
+- `tests/test_install_checks.py`（13）
+
+GitHub Actions（`.github/workflows/ci.yml`）首次真实运行曾失败，原因与修复：缺少 `httpx2`、Windows 控制台 cp1252 编码、CellRank 迭代求解器负概率、历史任务夹具；修复后最新运行前后端均成功。

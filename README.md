@@ -317,7 +317,7 @@ python install.py --check
 .venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-当前记录 **143 个测试**（2026-10-25 16:50 的全量运行，见 [测试报告](docs/test_report.md)）；
+当前记录 **272 个测试**（2026-10-25 21:52 全量运行，见 [测试报告](docs/test_report.md)）；
 本次另新增 `tests/test_install_checks.py`（13 项），**未重跑全量**，所以总数未复核。
 覆盖范围：
 
@@ -364,5 +364,5 @@ scVelo stochastic ≈19 s、dynamical ≈23 s，CellRank ≈22 s。真实数据�
 - [测试报告](docs/test_report.md)｜[已知问题](docs/remaining_issues.md)｜[第三方许可证](THIRD_PARTY_NOTICES)
 - 本仓库代码采用 [MIT License](LICENSE)；第三方组件许可见 THIRD_PARTY_NOTICES。
 - [API 路由](docs/api_surface.md)｜[本机可用能力](docs/local_capability.md)
-- [交付状态](docs/final_status.md)｜[验收清单](docs/acceptance.md)｜[术语参考表](docs/术语表.md)
+- [审计落实对照](docs/audit_response.md)｜[交付状态](docs/final_status.md)｜[验收清单](docs/acceptance.md)｜[术语参考表](docs/术语表.md)
 - [版本与来源核查](docs/版本与来源核查.md)｜[本机硬件与运行策略](docs/本机硬件与运行策略.md)｜[验证记录](验证记录.md)

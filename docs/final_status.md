@@ -6,20 +6,25 @@
 
 CellFlow 已可作为本机（Windows / 16 GB / 无 NVIDIA GPU）的单细胞动力学科研工作台使用：
 11 个方法可真实运行，任务队列/结果/报告/导出/数据管理/项目隔离/内存保护均已实现，
-**143 项自动化测试通过**；剩余主要是**需要人工在桌面窗口点一次的验收**与明确标注的可选扩展。
+**272 项自动化测试通过**；剩余主要是**需要人工在桌面窗口点一次的验收**与明确标注的可选扩展。
 
 ## 证据（可复跑）
 
 | 项 | 命令 / 位置 | 结果 |
 |---|---|---|
-| 单元/集成测试 | `.venv\Scripts\python.exe -m unittest discover -s tests` | **143 通过**（约 97 s） |
+| 单元/集成测试 | `.venv\Scripts\python.exe -m unittest discover -s tests` | **272 通过**（约 207 s） |
 | 前端类型与构建 | `cd web && npx tsc --noEmit && npm run build` | tsc 0；build 成功 |
 | 依赖一致性 | `uv pip check --python .venv\Scripts\python.exe` | 115 个包兼容 |
 | Python 语法 | `python -m compileall cellflow tools install.py` | 通过 |
 | 文档链接 | `python tools/check_docs_links.py` | `DOC_LINKS_OK` |
-| API 路由 | `docs/api_surface.md`（34 条） | 生成脚本可复跑 |
+| API 路由 | `docs/api_surface.md` | 生成脚本可复跑 |
 | 真实 HTTP 验收 | 任务 `9951ad091fd74f61` | completed、7 图、PDF 755 KB、ZIP 795 KB |
 | 界面截图 | `docs/screenshots/{overview,data,model,results,reports}.png` | 1440×1000 实际渲染 |
+
+## 持续集成
+
+GitHub Actions 前后端均已成功（`.github/workflows/ci.yml`）：前端 `npm ci` + tsc + build，
+后端真实安装依赖、`install.py --check`、文档链接与全量 unittest。
 
 ## 本机能力
 

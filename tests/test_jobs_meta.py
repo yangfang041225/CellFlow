@@ -177,8 +177,12 @@ class JobsMeta(unittest.TestCase):
         self.assertEqual(len(manifest['file_sha256']['config.json']), 64)
         full = self.client.get(f"/api/runs/{job['id']}/zip?full=1")
         self.assertEqual(full.status_code, 200)
-        full_manifest = json.loads(zipfile.ZipFile(io.BytesIO(full.content)).read('manifest.json'))
+        full_archive = zipfile.ZipFile(io.BytesIO(full.content))
+        full_manifest = json.loads(full_archive.read('manifest.json'))
         self.assertEqual(full_manifest['package_kind'], 'reproducibility-pack')
+        output = Path(job.get('output') or '')
+        if (output / 'velocity.npz').is_file():
+            self.assertIn('velocity.npz', full_archive.namelist())
 
     def test_quality_report_flags_shape_mismatch(self):
         from cellflow.data import load
