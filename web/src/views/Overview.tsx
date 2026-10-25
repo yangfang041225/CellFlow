@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Callout, Dialog, HTMLSelect, InputGroup, Spinner, Tag } from '@blueprintjs/core';
 import { api, Dataset, Meta, Run } from '../services/api';
+import { createTracker, isAbortError } from '../services/async';
 import type { ViewKey } from '../app';
 
 function dur(run: Run): string {
@@ -24,8 +25,9 @@ export function Overview(props: {
   meta: Meta; dataset?: Dataset; refresh: () => void;
   notify: (kind: 'ok' | 'warn' | 'bad', text: string) => void;
   onNavigate: (view: ViewKey) => void;
+  onOpenRun: (run: Run) => void;
 }) {
-  const { meta, dataset, refresh, notify, onNavigate } = props;
+  const { meta, dataset, refresh, notify, onNavigate, onOpenRun } = props;
   const [runs, setRuns] = useState<Run[]>([]);
   const [error, setError] = useState('');
   const [stateFilter, setStateFilter] = useState('');
@@ -34,14 +36,28 @@ export function Overview(props: {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<any>(null);
   const [detailError, setDetailError] = useState('');
+  const runsTracker = useRef(createTracker()).current;
+  const detailTracker = useRef(createTracker()).current;
+  const detailAbort = useRef<AbortController | null>(null);
+
+  useEffect(() => () => {
+    detailAbort.current?.abort();
+  }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      api.runs({ state: stateFilter, q: query })
-        .then((data) => setRuns(data.runs))
-        .catch((exc) => setError(String(exc)));
+      const token = runsTracker.begin();
+      api.runs({ state: stateFilter, q: query }, controller.signal)
+        .then((data) => { if (runsTracker.current(token)) setRuns(data.runs); })
+        .catch((exc) => {
+          if (runsTracker.current(token) && !isAbortError(exc)) setError(String(exc));
+        });
     }, 200);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
   }, [meta, stateFilter, query]);
 
   // 筛选条件变化时回到第 1 页
@@ -147,7 +163,7 @@ export function Overview(props: {
                     {ACTIVE.has(run.state) ? (
                       <Button small minimal intent="danger" onClick={() => cancel(run.id)}>取消</Button>
                     ) : (
-                      <Button small minimal onClick={() => onNavigate('results')}>查看</Button>
+                      <Button small minimal onClick={() => onOpenRun(run)}>查看</Button>
                     )}
                     <Button small minimal icon="edit" onClick={async () => {
                       const next = window.prompt('任务名称', run.name || '');
@@ -228,10 +244,17 @@ export function Overview(props: {
                       setDetailOpen(true);
                       setDetail(null);
                       setDetailError('');
+                      const token = detailTracker.begin();
+                      detailAbort.current?.abort();
+                      const controller = new AbortController();
+                      detailAbort.current = controller;
                       try {
-                        setDetail(await api.datasetDetail(item.id));
+                        const data = await api.datasetDetail(item.id, controller.signal);
+                        if (detailTracker.current(token)) setDetail(data);
                       } catch (exc) {
-                        setDetailError(String(exc));
+                        if (detailTracker.current(token) && !isAbortError(exc)) {
+                          setDetailError(String(exc));
+                        }
                       }
                     }} />
                     <Button small minimal icon="trash" onClick={async () => {
@@ -288,8 +311,14 @@ export function Overview(props: {
                   <tr><td style={{ padding: 3, color: '#566069' }}>层</td><td>{detail.layers.join('、') || '无'}</td></tr>
                   <tr><td style={{ padding: 3, color: '#566069' }}>obs 列</td><td>{detail.obs.join('、') || '无'}</td></tr>
                   <tr><td style={{ padding: 3, color: '#566069' }}>大小</td><td>{detail.size}</td></tr>
-                  <tr><td style={{ padding: 3, color: '#566069' }}>SHA-256</td>
-                    <td className="cf-mono" style={{ fontSize: 10.8, wordBreak: 'break-all' }}>{detail.sha256}</td></tr>
+                  <tr><td style={{ padding: 3, color: '#566069' }}>
+                    {detail.hash_kind === 'sha256' ? 'SHA-256' : '内容指纹'}</td>
+                    <td className="cf-mono" style={{ fontSize: 10.8, wordBreak: 'break-all' }}>
+                      {detail.content_hash}
+                      {detail.hash_kind !== 'sha256'
+                        ? <div style={{ fontSize: 10.8, color: '#a8541f' }}>大文件仅取首尾 4 MB + 大小，不能当作完整 SHA-256</div>
+                        : null}
+                    </td></tr>
                   <tr><td style={{ padding: 3, color: '#566069' }}>内存预估</td>
                     <td>{detail.memory ? (detail.memory.gb + ' GB（可用 ' + detail.memory.available_gb + ' GB；' + detail.memory.method + '）') : '—'}</td></tr>
                   <tr><td style={{ padding: 3, color: '#566069' }}>表达范围</td>

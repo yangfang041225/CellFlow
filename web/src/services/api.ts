@@ -83,11 +83,16 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+// 可选 AbortSignal：调用方切换数据/任务时取消旧请求，避免旧响应覆盖新上下文。
+function signalOptions(signal?: AbortSignal): RequestInit | undefined {
+  return signal ? { signal } : undefined;
+}
+
 export const api = {
-  meta: () => request<Meta>('/api/meta'),
-  inspect: (path: string, rawX = false, rawSU = false) =>
+  meta: (signal?: AbortSignal) => request<Meta>('/api/meta', signalOptions(signal)),
+  inspect: (path: string, rawX = false, rawSU = false, signal?: AbortSignal) =>
     request<Inspect>(`/api/datasets/inspect?path=${encodeURIComponent(path)}`
-      + `&raw_x=${rawX ? 1 : 0}&raw_su=${rawSU ? 1 : 0}`),
+      + `&raw_x=${rawX ? 1 : 0}&raw_su=${rawSU ? 1 : 0}`, signalOptions(signal)),
   upload: async (file: File) => {
     const form = new FormData();
     form.append('file', file);
@@ -101,26 +106,30 @@ export const api = {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source, identifier }),
     }),
-  runs: (params?: { state?: string; method?: string; dataset?: string; q?: string; limit?: number }) => {
+  runs: (params?: { state?: string; method?: string; dataset?: string; q?: string; limit?: number },
+         signal?: AbortSignal) => {
     const search = new URLSearchParams();
     Object.entries(params || {}).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') search.set(key, String(value));
     });
     const suffix = search.toString();
-    return request<{ runs: Run[] }>('/api/runs' + (suffix ? '?' + suffix : ''));
+    return request<{ runs: Run[] }>('/api/runs' + (suffix ? '?' + suffix : ''), signalOptions(signal));
   },
   cancel: (id: string) => request<{ ok: boolean; message: string }>(`/api/runs/${id}/cancel`, { method: 'POST' }),
-  run: (id: string) => request<RunDetail>(`/api/runs/${id}`),
+  run: (id: string, signal?: AbortSignal) =>
+    request<RunDetail>(`/api/runs/${id}`, signalOptions(signal)),
   createRun: (path: string, method: string, config: Record<string, unknown>) =>
     request<{ ok: boolean; id: string }>('/api/runs', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path, method, config }),
     }),
-  log: (id: string) => request<{ log: string }>(`/api/logs/${id}`),
-  report: (id: string, kind: string) => fetch(`/api/runs/${id}/report/${kind}`).then((r) => {
-    if (!r.ok) throw new Error('报告不存在');
-    return r.text();
-  }),
+  log: (id: string, signal?: AbortSignal) =>
+    request<{ log: string }>(`/api/logs/${id}`, signalOptions(signal)),
+  report: (id: string, kind: string, signal?: AbortSignal) =>
+    fetch(`/api/runs/${id}/report/${kind}`, signalOptions(signal)).then((r) => {
+      if (!r.ok) throw new Error('报告不存在');
+      return r.text();
+    }),
   startDownload: (source: string, identifier: string) =>
     request<{ ok: boolean; id: string }>('/api/downloads', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -157,9 +166,9 @@ export const api = {
   deleteRun: (id: string) => request<{ ok: boolean; message: string }>(`/api/runs/${id}`, { method: 'DELETE' }),
   removeDataset: (id: string) =>
     request<{ ok: boolean; message: string }>(`/api/datasets/${id}`, { method: 'DELETE' }),
-  datasetDetail: (id: string) => request<{
+  datasetDetail: (id: string, signal?: AbortSignal) => request<{
     id: string; label: string; source: string; kind: string; size: string;
-    mtime: number; path: string; sha256: string;
+    mtime: number; path: string; content_hash: string; hash_kind: string;
     n_cells: number; n_genes: number; layers: string[]; obs: string[];
     x_kind: string; warnings: string[];
     tasks: { id: string; name: string; state: string }[]; task_count: number;
@@ -169,9 +178,9 @@ export const api = {
       cells: string[]; genes: string[]; layers: string[]; obs_preview: Record<string, string[]>;
       obs_summary: Record<string, { unique: number; top: { value: string; count: number; zh?: string | null }[] }>;
     };
-  }>(`/api/datasets/${id}/detail`),
+  }>(`/api/datasets/${id}/detail`, signalOptions(signal)),
   pdfUrl: (id: string, kind: 'a' | 'b') => `/api/runs/${id}/report/${kind}/pdf`,
-  compareRuns: (id: string, other: string) =>
+  compareRuns: (id: string, other: string, signal?: AbortSignal) =>
     request<{
       a: string; b: string;
       changes: { key: string; a: unknown; b: unknown }[];
@@ -180,7 +189,7 @@ export const api = {
       figures?: { a: string[]; b: string[] };
       can_compare_figures?: boolean;
       compare_reason?: string;
-    }>(`/api/runs/${id}/compare/${other}`),
+    }>(`/api/runs/${id}/compare/${other}`, signalOptions(signal)),
   renameProject: (name: string) =>
     request<{ ok: boolean }>('/api/project', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

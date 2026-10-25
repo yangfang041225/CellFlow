@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alignment, Button, Callout, Dialog, Drawer, H3, HTMLSelect, InputGroup,
   Menu, MenuDivider, MenuItem, Navbar, NavbarDivider, NavbarGroup, NavbarHeading,
   Spinner, Tag,
 } from '@blueprintjs/core';
-import { api, Dataset, Meta } from './services/api';
+import { api, Dataset, Meta, Run } from './services/api';
+import {
+  Declaration, EMPTY_DECLARATION, datasetVersionKey, declarationFor, loadDeclarations,
+  saveDeclarations,
+} from './services/context';
 import { Overview } from './views/Overview';
 import { DataView } from './views/Data';
 import { ModelView } from './views/Model';
@@ -61,10 +65,17 @@ export function App() {
   const [newProjectName, setNewProjectName] = useState('');
   const [manageOpen, setManageOpen] = useState(false);
   const [health, setHealth] = useState<any>(null);
+  // F07：科研声明按“数据内容版本”隔离保存，由 App 统一持有，数据页与模型页共用同一份状态。
+  const [declarations, setDeclarations] = useState<Record<string, Declaration>>(() => loadDeclarations());
+  // F08：概览「查看」把任务 id 交给结果页定位，避免跳到结果页后仍显示别的任务。
+  const [focusRunId, setFocusRunId] = useState('');
+  const metaSeq = useRef(0);
 
   const load = useCallback(async () => {
+    const token = ++metaSeq.current;
     try {
       const data = await api.meta();
+      if (token !== metaSeq.current) return; // 旧请求不覆盖新上下文
       // 正式界面不展示内置模拟示例（测试数据只保留在测试与 API 层）
       const visible = { ...data, datasets: data.datasets.filter((item) => item.source !== '示例') };
       setMeta(visible);
@@ -73,11 +84,14 @@ export function App() {
         setDatasetId(data.datasets[0].id);
       }
     } catch (exc) {
+      if (token !== metaSeq.current) return;
       setError(String(exc));
     }
   }, [datasetId]);
 
   useEffect(() => { void load(); }, [load, tick]);
+
+  useEffect(() => { saveDeclarations(declarations); }, [declarations]);
 
   useEffect(() => { localStorage.setItem('cf.view', view); }, [view]);
 
@@ -105,6 +119,54 @@ export function App() {
   };
 
   const refresh = () => setTick((value) => value + 1);
+
+  // 当前数据版本的声明；没有记录时视为“未确认”（不会继承上一份数据的勾选）。
+  const declaration = declarationFor(declarations, dataset);
+
+  const changeDeclaration = useCallback((patch: Partial<Declaration>) => {
+    const target = dataset;
+    if (!target) return;
+    const key = datasetVersionKey(target);
+    if (!key) return;
+    setDeclarations((current) => {
+      const previous = current[key] || EMPTY_DECLARATION;
+      const next: Declaration = {
+        ...previous,
+        ...patch,
+        path: target.path,
+        mtime: Number(target.mtime || 0),
+        confirmedAt: Date.now(),
+      };
+      return { ...current, [key]: next };
+    });
+  }, [dataset]);
+
+  const openRun = useCallback((run: Run) => {
+    const path = run.dataset || run.input || '';
+    const match = (meta?.datasets || []).find((item) => item.path === path);
+    if (!match) {
+      // 任务所属数据不在当前项目：不要把用户带到会显示别的数据的结果页。
+      setNotice({ kind: 'warn', text: '该任务对应的数据集不在当前项目中，无法在结果页定位。' });
+      window.setTimeout(() => setNotice(null), 6000);
+      return;
+    }
+    setDatasetId(match.id);
+    setFocusRunId(run.id);
+    setView('results');
+  }, [meta?.datasets]);
+
+  const consumeFocusRun = useCallback(() => setFocusRunId(''), []);
+
+  const switchProject = useCallback(async (projectId: string) => {
+    try {
+      await api.activateProject(projectId);
+      setFocusRunId('');
+      setTick((value) => value + 1);
+    } catch (exc) {
+      setNotice({ kind: 'bad', text: `切换项目失败：${exc}` });
+      window.setTimeout(() => setNotice(null), 6000);
+    }
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -169,14 +231,7 @@ export function App() {
           <HTMLSelect
             value={meta.active_project?.id || (meta.projects?.[0]?.id || '')}
             style={{ width: 150, height: 28, marginLeft: 6 }}
-            onChange={async (event) => {
-              try {
-                await api.activateProject(event.currentTarget.value);
-                refresh();
-              } catch (exc) {
-                notify('bad', `切换项目失败：${exc}`);
-              }
-            }}>
+            onChange={(event) => { void switchProject(event.currentTarget.value); }}>
             {(meta.projects || []).filter((project) => !project.archived).map((project) => (
               <option key={project.id} value={project.id}>{project.name}</option>
             ))}
@@ -245,16 +300,21 @@ export function App() {
           ) : null}
 
           {view === 'overview' ? (
-            <Overview meta={meta} dataset={dataset} refresh={refresh} notify={notify} onNavigate={setView} />
+            <Overview meta={meta} dataset={dataset} refresh={refresh} notify={notify}
+                      onNavigate={setView} onOpenRun={openRun} />
           ) : null}
           {view === 'data' ? (
-            <DataView meta={meta} dataset={dataset} onSelect={(id) => { setDatasetId(id); refresh(); }} notify={notify} refresh={refresh} />
+            <DataView meta={meta} dataset={dataset} onSelect={(id) => { setDatasetId(id); refresh(); }}
+                      notify={notify} refresh={refresh}
+                      declaration={declaration} onDeclarationChange={changeDeclaration} />
           ) : null}
           {view === 'model' ? (
-            <ModelView meta={meta} dataset={dataset} refresh={refresh} notify={notify} />
+            <ModelView meta={meta} dataset={dataset} refresh={refresh} notify={notify}
+                       declaration={declaration} onDeclarationChange={changeDeclaration} />
           ) : null}
           {view === 'results' ? (
-            <ResultsView meta={meta} dataset={dataset} notify={notify} tick={tick} />
+            <ResultsView meta={meta} dataset={dataset} notify={notify} tick={tick}
+                         focusRunId={focusRunId} onFocusConsumed={consumeFocusRun} />
           ) : null}
           {view === 'reports' ? (
             <ReportsView meta={meta} dataset={dataset} notify={notify} />
@@ -347,6 +407,7 @@ export function App() {
               try {
                 const result = await api.createProject(newProjectName.trim());
                 setCreateOpen(false);
+                setFocusRunId('');
                 notify('ok', `已创建并切换到项目：${result.project.name}`);
                 refresh();
               } catch (exc) {
@@ -382,14 +443,7 @@ export function App() {
                   </td>
                   <td style={{ padding: 4 }}>
                     <Button small minimal disabled={project.archived || project.id === meta.active_project?.id}
-                            onClick={async () => {
-                              try {
-                                await api.activateProject(project.id);
-                                refresh();
-                              } catch (exc) {
-                                notify('bad', `切换失败：${exc}`);
-                              }
-                            }}>切换</Button>
+                            onClick={() => { void switchProject(project.id); }}>切换</Button>
                     <Button small minimal onClick={async () => {
                       try {
                         await api.archiveProject(project.id, !project.archived);

@@ -1,9 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button, Callout, Dialog, HTMLSelect, HTMLTable, InputGroup, Spinner, Tag,
 } from '@blueprintjs/core';
 import { DockviewReact, DockviewReadyEvent, IDockviewPanelProps, themeLight } from 'dockview-react';
 import { api, Dataset, Meta, Run, RunDetail } from '../services/api';
+import { createTracker, isAbortError } from '../services/async';
+import { datasetVersionKey } from '../services/context';
 
 const FIG_CAPTIONS: Record<string, string> = {
   'embedding.svg': '二维投影（箭头仅表示模型给出的方向）',
@@ -16,6 +18,8 @@ const FIG_CAPTIONS: Record<string, string> = {
 };
 
 const RunContext = createContext<RunDetail | null>(null);
+// F31：运行中任务的日志按 tick / updated 刷新，不再只依赖 id 与 state。
+const TickContext = createContext(0);
 
 function FiguresPanel(_props: IDockviewPanelProps) {
   const run = useContext(RunContext);
@@ -208,12 +212,20 @@ function GenesPanel(_props: IDockviewPanelProps) {
 function LogPanel(_props: IDockviewPanelProps) {
   const [log, setLog] = useState('');
   const run = useContext(RunContext);
+  const tick = useContext(TickContext);
   useEffect(() => {
-    if (!run) return;
+    if (!run) {
+      setLog('');
+      return undefined;
+    }
     let alive = true;
-    api.log(run.id).then((data) => { if (alive) setLog(data.log); }).catch(() => { if (alive) setLog(''); });
-    return () => { alive = false; };
-  }, [run?.id, run?.state]);
+    const controller = new AbortController();
+    api.log(run.id, controller.signal)
+      .then((data) => { if (alive) setLog(data.log); })
+      .catch((exc) => { if (alive && !isAbortError(exc)) setLog(''); });
+    return () => { alive = false; controller.abort(); };
+    // updated 随运行阶段推进而变化：运行中也能持续刷新日志
+  }, [run?.id, run?.state, run?.updated, tick]);
   return (
     <div className="cf-panel-pad">
       <pre style={{ fontSize: 11.4, whiteSpace: 'pre-wrap', margin: 0 }}>{log || '（没有 run.log）'}</pre>
@@ -227,9 +239,9 @@ const dockComponents = {
 
 export function ResultsView(props: {
   meta: Meta; dataset?: Dataset; notify: (kind: 'ok' | 'warn' | 'bad', text: string) => void;
-  tick?: number;
+  tick?: number; focusRunId?: string; onFocusConsumed?: () => void;
 }) {
-  const { meta, notify, tick, dataset } = props;
+  const { meta, notify, tick, dataset, focusRunId, onFocusConsumed } = props;
   const [runs, setRuns] = useState<Run[]>([]);
   const [runId, setRunId] = useState('');
   const [detail, setDetail] = useState<RunDetail | null>(null);
@@ -245,51 +257,121 @@ export function ResultsView(props: {
     compare_reason?: string;
   } | null>(null);
   const [compareError, setCompareError] = useState('');
+  const runsTracker = useRef(createTracker()).current;
+  const detailTracker = useRef(createTracker()).current;
+  const compareTracker = useRef(createTracker()).current;
+
+  // 当前上下文（项目 + 数据版本）：切换后旧结果必须立刻消失。
+  const contextKey = `${meta.active_project?.id || ''}|${datasetVersionKey(dataset)}`;
 
   useEffect(() => {
-    if (!compareOpen || !runId || !compareTarget) return;
-    setCompareError('');
-    api.compareRuns(runId, compareTarget)
-      .then((data) => setCompareData(data))
-      .catch((exc) => { setCompareData(null); setCompareError(String(exc)); });
-  }, [compareOpen, runId, compareTarget]);
-
-  useEffect(() => {
-    api.runs().then((data) => setRuns(data.runs)).catch((exc) => notify('bad', String(exc)));
+    const controller = new AbortController();
+    const token = runsTracker.begin();
+    api.runs(undefined, controller.signal)
+      .then((data) => { if (runsTracker.current(token)) setRuns(data.runs); })
+      .catch((exc) => { if (runsTracker.current(token) && !isAbortError(exc)) notify('bad', String(exc)); });
+    return () => controller.abort();
   }, [meta, tick]);
 
+  // 只显示当前数据集（且属于当前项目）的任务；没有当前数据时不再回退到别的数据集。
   const scoped = useMemo(() => {
-    if (!dataset) return runs;
-    const filtered = runs.filter((run) => (run as any).dataset === dataset.path
-      || (!(run as any).dataset && run.input === dataset.path));
-    return filtered.length ? filtered : runs;
+    if (!dataset) return [] as Run[];
+    return runs.filter((run) => {
+      const owner = run.dataset || run.input || '';
+      return owner === dataset.path;
+    });
   }, [runs, dataset]);
 
   useEffect(() => {
-    if (!scoped.length) return;
-    if (!runId || !scoped.some((run) => run.id === runId)) setRunId(scoped[0].id);
-  }, [scoped]);
-
-  const current = scoped.find((run) => run.id === runId);
+    setCompareOpen(false);
+    setCompareTarget('');
+    setCompareData(null);
+    setCompareError('');
+  }, [contextKey]);
 
   useEffect(() => {
-    if (!runId) return;
-    let alive = true;
+    if (!scoped.length) {
+      setRunId('');
+      return;
+    }
+    setRunId((current) => (current && scoped.some((run) => run.id === current)
+      ? current
+      : scoped[0].id));
+  }, [scoped]);
+
+  // 概览「查看」：定位到指定任务（等任务列表到达后再选中）。
+  useEffect(() => {
+    if (!focusRunId) return;
+    if (!scoped.some((run) => run.id === focusRunId)) return;
+    setRunId(focusRunId);
+    onFocusConsumed?.();
+  }, [focusRunId, scoped, onFocusConsumed]);
+
+  useEffect(() => {
+    if (!compareOpen || !runId || !compareTarget) return undefined;
+    const controller = new AbortController();
+    const token = compareTracker.begin();
+    setCompareError('');
+    setCompareData(null);
+    api.compareRuns(runId, compareTarget, controller.signal)
+      .then((data) => { if (compareTracker.current(token)) setCompareData(data); })
+      .catch((exc) => {
+        if (!compareTracker.current(token) || isAbortError(exc)) return;
+        setCompareData(null);
+        setCompareError(String(exc));
+      });
+    return () => controller.abort();
+  }, [compareOpen, runId, compareTarget]);
+
+  const current = scoped.find((run) => run.id === runId);
+  // 详情只在 id 与当前选择一致时展示：即使旧响应/旧状态残留，也不会把别的任务的图带出来。
+  const shown = detail && detail.id === runId ? detail : null;
+
+  useEffect(() => {
+    if (!runId) {
+      setDetail(null);
+      setLoading(false);
+      return undefined;
+    }
+    const controller = new AbortController();
+    const token = detailTracker.begin();
+    // 同一任务刷新时保留内容避免闪烁；切换任务时立即清空图、指标与下载入口。
+    setDetail((previous) => (previous && previous.id === runId ? previous : null));
     setLoading(true);
-    api.run(runId).then((data) => { if (alive) setDetail(data); })
-      .catch((exc) => notify('bad', String(exc)))
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
+    api.run(runId, controller.signal)
+      .then((data) => {
+        if (!detailTracker.current(token) || data.id !== runId) return;
+        setDetail(data);
+        setRuns((items) => items.map((item) => (item.id === data.id
+          ? { ...item, state: data.state, updated: data.updated, name: data.name || item.name }
+          : item)));
+      })
+      .catch((exc) => {
+        if (!detailTracker.current(token) || isAbortError(exc)) return;
+        setDetail(null);
+        notify('bad', `读取任务失败：${exc}`);
+      })
+      .finally(() => { if (detailTracker.current(token)) setLoading(false); });
+    return () => controller.abort();
   }, [runId, tick]);
 
   // 运行中自动刷新详情（不显示伪造百分比，只更新真实状态）
+  const shownState = shown?.state || '';
   useEffect(() => {
-    if (!detail || !['queued', 'running'].includes(detail.state)) return;
+    const id = shown?.id || '';
+    if (!id) return undefined;
+    if (shownState !== 'queued' && shownState !== 'running') return undefined;
     const timer = window.setInterval(() => {
-      api.run(runId).then(setDetail).catch(() => undefined);
+      api.run(id).then((data) => {
+        if (data.id !== id) return;
+        setDetail((previous) => (previous && previous.id === id ? data : previous));
+        setRuns((items) => items.map((item) => (item.id === data.id
+          ? { ...item, state: data.state, updated: data.updated }
+          : item)));
+      }).catch(() => undefined);
     }, 3000);
     return () => window.clearInterval(timer);
-  }, [detail?.state, runId]);
+  }, [shown?.id, shownState]);
 
   const onReady = useCallback((event: DockviewReadyEvent) => {
     event.api.onDidLayoutChange(() => {
@@ -323,15 +405,19 @@ export function ResultsView(props: {
     });
   }, []);
 
-  const missing = detail && detail.state === 'completed' && detail.artifacts
-    && !detail.artifacts.result;
+  const missing = shown && shown.state === 'completed' && shown.artifacts
+    && !shown.artifacts.result;
 
   return (
     <div>
       <div className="cf-h1">分析结果</div>
-      <div className="cf-sub">图形、指标、候选基因与运行记录；只显示任务实际产生的文件。</div>
+      <div className="cf-sub">图形、指标、候选基因与运行记录；只显示当前数据集的任务实际产生的文件。</div>
 
-      {scoped.length === 0 ? <Callout intent="warning">当前数据集还没有任务。到「模型分析」运行一个方法。</Callout> : null}
+      {!dataset ? (
+        <Callout intent="warning">先到「数据」选择一个数据集；本页只显示当前数据集的任务。</Callout>
+      ) : scoped.length === 0 ? (
+        <Callout intent="warning">当前数据集还没有任务。到「模型分析」运行一个方法。</Callout>
+      ) : null}
 
       {scoped.length ? (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', margin: '6px 0' }}>
@@ -342,25 +428,25 @@ export function ResultsView(props: {
               </option>
             ))}
           </HTMLSelect>
-          {detail ? (
+          {shown ? (
             <>
-              <Tag minimal intent={detail.state === 'completed' ? 'success' : detail.state === 'failed' ? 'danger' : 'primary'}>
-                {detail.state}
+              <Tag minimal intent={shown.state === 'completed' ? 'success' : shown.state === 'failed' ? 'danger' : 'primary'}>
+                {shown.state}
               </Tag>
-              <span className="cf-sub">{detail.name || detail.method_label}</span>
-              {detail.state === 'running' && detail.stage ? (
-                <span className="cf-sub">阶段：{detail.stage}</span>
+              <span className="cf-sub">{shown.name || shown.method_label}</span>
+              {shown.state === 'running' && shown.stage ? (
+                <span className="cf-sub">阶段：{shown.stage}</span>
               ) : null}
-              {detail.error ? <Callout intent="danger" compact>{detail.error}</Callout> : null}
+              {shown.error ? <Callout intent="danger" compact>{shown.error}</Callout> : null}
             </>
           ) : null}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {detail && ['queued', 'running'].includes(detail.state) ? (
+            {shown && ['queued', 'running'].includes(shown.state) ? (
               <Button intent="danger" minimal onClick={async () => {
                 try {
-                  const result = await api.cancel(detail.id);
+                  const result = await api.cancel(shown.id);
                   notify('ok', result.message || '已取消');
-                  setDetail({ ...detail, state: 'cancelled' });
+                  setDetail({ ...shown, state: 'cancelled' });
                 } catch (exc) {
                   notify('bad', `取消失败：${exc}`);
                 }
@@ -390,35 +476,37 @@ export function ResultsView(props: {
 
       {missing ? (
         <Callout intent="warning" style={{ marginBottom: 6 }}>
-          该任务标记为完成，但结果目录缺少 result.json。目录：{detail!.output}
+          该任务标记为完成，但结果目录缺少 result.json。目录：{shown!.output}
           （可能被移动或删除；日志仍可查看）
         </Callout>
       ) : null}
 
-      {detail?.quality && (detail.quality.warnings?.length || !detail.quality.ok) ? (
+      {shown?.quality && (shown.quality.warnings?.length || !shown.quality.ok) ? (
         <Callout intent="warning" style={{ marginBottom: 6 }}>
           <b>结果质量检查</b>
           <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
-            {detail.quality.checks.filter((item) => !item.ok).map((item) => (
+            {shown.quality.checks.filter((item) => !item.ok).map((item) => (
               <li key={item.check}>{item.check}{item.detail ? `：${item.detail}` : ''}</li>
             ))}
-            {detail.quality.warnings.map((item) => <li key={item}>{item}</li>)}
+            {shown.quality.warnings.map((item) => <li key={item}>{item}</li>)}
           </ul>
         </Callout>
       ) : null}
 
-      {detail && detail.result ? (
-        <RunContext.Provider value={detail}>
-          <div className="cf-dock">
-            <DockviewReact components={dockComponents} onReady={onReady} theme={themeLight} />
-          </div>
+      {shown && shown.result ? (
+        <RunContext.Provider value={shown}>
+          <TickContext.Provider value={tick ?? 0}>
+            <div className="cf-dock">
+              <DockviewReact components={dockComponents} onReady={onReady} theme={themeLight} />
+            </div>
+          </TickContext.Provider>
         </RunContext.Provider>
       ) : null}
 
-      {detail && !detail.result && !missing ? (
+      {shown && !shown.result && !missing ? (
         <Callout compact intent="primary">
-          任务状态为 {detail.state}：
-          {detail.state === 'failed' ? '失败原因见错误信息与运行记录。' : '结果尚未生成，页面会自动刷新。'}
+          任务状态为 {shown.state}：
+          {shown.state === 'failed' ? '失败原因见错误信息与运行记录。' : '结果尚未生成，页面会自动刷新。'}
         </Callout>
       ) : null}
 

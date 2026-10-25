@@ -1,84 +1,180 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button, Callout, FormGroup, HTMLSelect, InputGroup, NumericInput, Spinner, Switch, Tag,
 } from '@blueprintjs/core';
 import { api, Dataset, Inspect, Meta, Run } from '../services/api';
+import { createTracker, isAbortError } from '../services/async';
+import {
+  AUTO_GROUP, Declaration, datasetVersionKey, readDraftForVersion, saveDraftForVersion,
+} from '../services/context';
+import { evaluateMethods, MethodGate } from '../services/precheck';
 
 type Props = {
   meta: Meta; dataset?: Dataset; refresh: () => void;
   notify: (kind: 'ok' | 'warn' | 'bad', text: string) => void;
+  declaration: Declaration;
+  onDeclarationChange: (patch: Partial<Declaration>) => void;
 };
 
 const TEXT_FIELDS: { key: string; label: string; hint: string; placeholder?: string }[] = [
-  { key: 'root_cell', label: '起点细胞 root_cell', hint: 'DPT / 命运分析需要：起始细胞在 obs 中的名字。', placeholder: '例如 cell_001' },
-  { key: 'root_reason', label: '起点依据 root_reason', hint: '为什么选它作为起点（实验或文献依据）。' },
-  { key: 'group_key', label: '分组列 group_key', hint: 'PAGA / 分群使用哪一列 obs；留空使用自动分群。' },
   { key: 'species', label: '物种 species', hint: '写进报告；不会自动推断。' },
   { key: 'sample_key', label: '样本列 sample_key', hint: '供体/样本列；未指定时细胞不是独立生物学重复。' },
-  { key: 'grn_path', label: '先验 GRN 文件 grn_path', hint: 'RegVelo 用 CSV（TF 为行、target 为列），≤10 MiB。' },
-  { key: 'grn_source', label: 'GRN 来源 grn_source', hint: '说明这张先验网络来自哪里。' },
 ];
 
-function draftKey(dataset?: Dataset) {
-  return 'cf.draft.' + (dataset?.id || 'none');
+/** 服务端 inspect 返回的默认配置；声明是数据级状态，不放进参数草稿。 */
+function baseConfig(data: Inspect): Record<string, any> {
+  const config: Record<string, any> = { ...(data.config || {}) };
+  delete config.raw_x_confirmed;
+  delete config.raw_su_confirmed;
+  return config;
 }
 
-function loadDraft(dataset?: Dataset, fallback: Record<string, any> = {}) {
-  try {
-    const raw = localStorage.getItem(draftKey(dataset));
-    if (!raw) return fallback;
-    return { ...fallback, ...JSON.parse(raw) };
-  } catch {
-    return fallback;
-  }
+function cleanDraft(value: Record<string, any> | null): Record<string, any> {
+  if (!value || typeof value !== 'object') return {};
+  const config: Record<string, any> = { ...value };
+  delete config.raw_x_confirmed;
+  delete config.raw_su_confirmed;
+  return config;
 }
 
-export function ModelView({ meta, dataset, refresh, notify }: Props) {
+export function ModelView({
+  meta, dataset, refresh, notify, declaration, onDeclarationChange,
+}: Props) {
+  const version = datasetVersionKey(dataset);
   const [inspect, setInspect] = useState<Inspect | null>(null);
+  const [inspectState, setInspectState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [inspectError, setInspectError] = useState('');
   const [method, setMethod] = useState('qc');
   const [runs, setRuns] = useState<Run[]>([]);
   const [busy, setBusy] = useState(false);
   const [config, setConfig] = useState<Record<string, any>>({});
-  const [rawX, setRawX] = useState(localStorage.getItem('cf.raw_x') === '1');
-  const [rawSU, setRawSU] = useState(localStorage.getItem('cf.raw_su') === '1');
+  const configRef = useRef<Record<string, any>>(config);
+  configRef.current = config;
+  /** 已经加载完草稿的数据版本键；为空表示不能把 config 写回存储。 */
+  const loadedKeyRef = useRef('');
+  const inspectTracker = useRef(createTracker()).current;
+  const runsTracker = useRef(createTracker()).current;
 
+  // 预检请求：切换数据/声明时取消旧请求；旧响应晚到也不能覆盖新数据。
   useEffect(() => {
-    if (!dataset) return;
-    api.inspect(dataset.path, rawX, rawSU).then((data) => {
-      setInspect(data);
-      setConfig(loadDraft(dataset, { ...data.config }) as Record<string, any>);
-      setMethod((current) => (data.methods.some((row) => row.key === current) ? current : (data.methods.find((row) => row.can_run)?.key || data.methods[0]?.key || 'qc')));
-    }).catch((exc) => notify('bad', String(exc)));
-  }, [dataset?.path, rawX, rawSU]);
-
-  useEffect(() => { api.runs().then((data) => setRuns(data.runs)); }, [meta]);
-
-  useEffect(() => {
-    if (dataset && Object.keys(config).length) {
-      localStorage.setItem(draftKey(dataset), JSON.stringify(config));
+    const controller = new AbortController();
+    const token = inspectTracker.begin();
+    // 切换前先把当前编辑中的草稿写回“旧的数据版本键”，
+    // 否则新数据的草稿还没加载完，旧 config 会被写到新数据集名下（F31）。
+    if (loadedKeyRef.current) {
+      saveDraftForVersion(loadedKeyRef.current, configRef.current);
+      loadedKeyRef.current = '';
     }
-  }, [config, dataset?.path]);
+    if (!dataset) {
+      setInspect(null);
+      setInspectState('idle');
+      setInspectError('');
+      setConfig({});
+      return () => controller.abort();
+    }
+    // 同一数据集重新预检（如切换声明）时保留旧结果避免表单闪烁；切换数据集时立即清空。
+    setInspect((previous) => (previous && previous.path === dataset.path ? previous : null));
+    setInspectState('loading');
+    setInspectError('');
+    api.inspect(dataset.path, declaration.rawX, declaration.rawSU, controller.signal)
+      .then((data) => {
+        if (!inspectTracker.current(token)) return;
+        const merged = { ...baseConfig(data), ...cleanDraft(readDraftForVersion(version)) };
+        const gates = evaluateMethods(data.methods, data.facts, merged);
+        loadedKeyRef.current = version; // 草稿加载完成后才允许写回
+        setInspect(data);
+        setInspectState('ready');
+        setConfig(merged);
+        setMethod((current) => (gates.some((gate) => gate.key === current)
+          ? current
+          : (gates.find((gate) => gate.ready)?.key || data.methods[0]?.key || 'qc')));
+      })
+      .catch((exc) => {
+        if (!inspectTracker.current(token) || isAbortError(exc)) return;
+        setInspectState('error');
+        setInspectError(String(exc));
+        notify('bad', `模型预检失败：${exc}`);
+      });
+    return () => controller.abort();
+  }, [dataset?.path, version, declaration.rawX, declaration.rawSU]);
 
-  const methods = inspect?.methods || [];
+  // 草稿：只有“当前版本的草稿确实加载完成”之后才写回，避免覆盖/串数据。
+  useEffect(() => {
+    if (!version) return;
+    if (loadedKeyRef.current !== version) return;
+    saveDraftForVersion(version, config);
+  }, [config, version]);
+
+  // 离开模型页时把最后的编辑写回当前数据版本。
+  useEffect(() => () => {
+    if (loadedKeyRef.current) saveDraftForVersion(loadedKeyRef.current, configRef.current);
+  }, []);
+
+  // 任务列表按当前数据集限定，避免把别的数据的任务当成“本方法的最近任务”。
+  useEffect(() => {
+    const controller = new AbortController();
+    const token = runsTracker.begin();
+    if (!dataset) {
+      setRuns([]);
+      return () => controller.abort();
+    }
+    api.runs({ dataset: dataset.path }, controller.signal)
+      .then((data) => { if (runsTracker.current(token)) setRuns(data.runs); })
+      .catch((exc) => { if (runsTracker.current(token) && !isAbortError(exc)) notify('bad', String(exc)); });
+    return () => controller.abort();
+  }, [meta, dataset?.path, version]);
+
+  // 渲染时再核对一次数据版本：切换数据集的同一帧不会显示上一份数据的预检结果。
+  const currentInspect = inspect && dataset && inspect.path === dataset.path ? inspect : null;
+  const methods = currentInspect?.methods || [];
+  const obsKeys = currentInspect?.facts.obs_keys || [];
+
+  // 每次相关字段变化都在本地重新预检（同步计算，不会出现旧响应覆盖）。
+  const gates = useMemo(
+    () => evaluateMethods(methods, currentInspect?.facts, config),
+    [currentInspect, config],
+  );
+  const gateByKey = useMemo(() => {
+    const map = new Map<string, MethodGate>();
+    gates.forEach((gate) => map.set(gate.key, gate));
+    return map;
+  }, [gates]);
   const row = useMemo(() => methods.find((item) => item.key === method), [methods, method]);
-  const ready = methods.filter((item) => item.can_run);
-  const blocked = methods.filter((item) => !item.can_run);
+  const gate = gateByKey.get(method);
+  const ready = Boolean(dataset) && inspectState === 'ready' && Boolean(gate?.ready);
+  const ordered = useMemo(() => {
+    const readyRows = methods.filter((item) => gateByKey.get(item.key)?.ready);
+    const blockedRows = methods.filter((item) => !gateByKey.get(item.key)?.ready);
+    return [...readyRows, ...blockedRows];
+  }, [methods, gateByKey]);
+  const active = runs.find(
+    (item) => item.method === method && (item.state === 'queued' || item.state === 'running'),
+  );
   const set = (key: string, value: any) => setConfig((current) => ({ ...current, [key]: value }));
-  const active = runs.find((item) => item.method === method && (item.state === 'queued' || item.state === 'running'));
+  const blockReasons = [...(gate?.missing || []), ...(gate?.blockers || [])];
+  const blockText = blockReasons.join('；') || '请先补齐前置条件';
 
-  const run = async () => {
+  const submit = async () => {
     if (!dataset || !row) return;
+    // 提交端与按钮使用同一份 gate 结论，不允许绕过按钮直接提交（F06）。
+    const currentGate = gateByKey.get(method);
+    if (!currentGate?.ready) {
+      const reasons = [...(currentGate?.missing || []), ...(currentGate?.blockers || [])].join('；')
+        || '请先补齐前置条件';
+      notify('warn', `「${row.name}」前置条件未满足：${reasons}`);
+      return;
+    }
     setBusy(true);
     try {
       const payload = {
         ...config,
-        raw_x_confirmed: rawX,
-        raw_su_confirmed: rawSU,
+        raw_x_confirmed: declaration.rawX,
+        raw_su_confirmed: declaration.rawSU,
       };
       const result = await api.createRun(dataset.path, method, payload);
       notify('ok', `任务 ${result.id.slice(0, 8)} 已在队列中（相同配置的活动任务会被复用）。到「分析结果」查看。`);
       refresh();
-      const data = await api.runs();
+      const data = await api.runs({ dataset: dataset.path });
       setRuns(data.runs);
     } catch (exc) {
       notify('bad', `提交失败：${exc}`);
@@ -97,6 +193,12 @@ export function ModelView({ meta, dataset, refresh, notify }: Props) {
     </FormGroup>
   );
 
+  const groupKeyHint = `obs 列：${obsKeys.join('、') || '（尚未返回）'}；填 ${AUTO_GROUP} 表示自动分群。`;
+  const currentNeeds = row?.needs || [];
+  const labelFor = (need: string, text: string) => (
+    currentNeeds.includes(need) ? `${text}（本方法必需）` : text
+  );
+
   return (
     <div>
       <div className="cf-h1">模型分析</div>
@@ -109,9 +211,9 @@ export function ModelView({ meta, dataset, refresh, notify }: Props) {
           <div className="cf-sec">方法</div>
           <HTMLSelect fill value={method} style={{ height: 30, fontSize: 12.6 }}
                       onChange={(event) => setMethod(event.currentTarget.value)}>
-            {[...ready, ...blocked].map((item) => (
+            {ordered.map((item) => (
               <option key={item.key} value={item.key}>
-                {item.can_run ? '可运行' : '受限'} · {item.name}
+                {gateByKey.get(item.key)?.ready ? '可运行' : '受限'} · {item.name}
               </option>
             ))}
           </HTMLSelect>
@@ -141,18 +243,69 @@ export function ModelView({ meta, dataset, refresh, notify }: Props) {
         </div>
 
         <div>
-          {inspect && row ? (
+          {inspectState === 'loading' ? <Spinner size={18} /> : null}
+          {inspectState === 'error' ? (
+            <Callout intent="danger" compact>预检失败：{inspectError}</Callout>
+          ) : null}
+          {currentInspect && row ? (
             <>
               <div className="cf-sec">{row.name} <span className="h">{row.packages.join('、')}</span></div>
               <Callout compact style={{ fontSize: 12 }}>
                 <b>必需输入</b>：{row.needs.join('、') || '无'}<br />
-                <b>缺失</b>：{(row.missing || []).length ? row.missing.join('；') : '无（满足）'}
+                <b>缺失</b>：{gate?.missing.length ? gate.missing.join('；') : '无（满足）'}
               </Callout>
-              {(row.blockers || []).length ? (
-                <Callout intent="warning" compact style={{ marginTop: 4 }}>{row.blockers.join('；')}</Callout>
+              {gate?.blockers.length ? (
+                <Callout intent="danger" compact style={{ marginTop: 4 }}>
+                  运行时/数据限制：{gate.blockers.join('；')}
+                </Callout>
               ) : null}
+              <div className="cf-sub" style={{ marginTop: 4 }}>
+                预检结论：
+                {gate
+                  ? (gate.ready
+                    ? <Tag minimal intent="success">可运行</Tag>
+                    : <Tag minimal intent="warning">还缺 {blockReasons.length} 项</Tag>)
+                  : '预检中…'}
+                {' '}按当前表单值实时复算；起点细胞是否存在于数据中由提交后的数据校验确认。
+              </div>
 
-              <div className="cf-sec">参数 <span className="h">默认值适用于多数情况；改动会按数据集保存草稿</span></div>
+              <div className="cf-sec">方法前提 <span className="h">DPT / CellRank 需起点，PAGA 需分组，RegVelo 需先验 GRN</span></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <FormGroup label={labelFor('root', '起点细胞 root_cell')}
+                           helperText="起始细胞在数据中的 ID；与依据同时填写才会通过预检。">
+                  <InputGroup value={String(config.root_cell ?? '')}
+                              placeholder="例如 cell_001"
+                              onChange={(event) => set('root_cell', event.currentTarget.value)} />
+                </FormGroup>
+                <FormGroup label={labelFor('root', '起点依据 root_reason')}
+                           helperText="为什么选它作为起点（实验或文献依据）。">
+                  <InputGroup value={String(config.root_reason ?? '')}
+                              onChange={(event) => set('root_reason', event.currentTarget.value)} />
+                </FormGroup>
+                <FormGroup label={labelFor('groups', '分组列 group_key')} helperText={groupKeyHint}>
+                  <InputGroup value={String(config.group_key ?? '')}
+                              list="cf-obs-columns"
+                              onChange={(event) => set('group_key', event.currentTarget.value)} />
+                </FormGroup>
+                <FormGroup label={labelFor('prior_GRN', '先验 GRN 文件 grn_path')}
+                           helperText="RegVelo 用 CSV（TF 为行、target 为列），≤10 MiB。">
+                  <InputGroup value={String(config.grn_path ?? '')}
+                              onChange={(event) => set('grn_path', event.currentTarget.value)} />
+                </FormGroup>
+                <FormGroup label={labelFor('prior_GRN', 'GRN 来源 grn_source')}
+                           helperText="说明这张先验网络来自哪里（物种、方向、基因 ID 与版本）。">
+                  <InputGroup value={String(config.grn_source ?? '')}
+                              onChange={(event) => set('grn_source', event.currentTarget.value)} />
+                </FormGroup>
+                <FormGroup label={labelFor('prior_GRN', '先验 GRN 已核查')}
+                           helperText="勾选即声明已核对来源、物种、方向与基因 ID。">
+                  <Switch checked={config.grn_confirmed === true}
+                          label="已核对来源 / 物种 / 方向 / 基因 ID"
+                          onChange={(event) => set('grn_confirmed', event.currentTarget.checked)} />
+                </FormGroup>
+              </div>
+
+              <div className="cf-sec">参数 <span className="h">默认值适用于多数情况；改动会按数据集版本保存草稿</span></div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>
                   {numeric('n_top_genes', '高变基因数 n_top_genes', 10, 10000, 100,
@@ -203,7 +356,10 @@ export function ModelView({ meta, dataset, refresh, notify }: Props) {
                   {numeric('arrow_density', '箭头密度 arrow_density', 20, 500, 10,
                     '每张图最多画多少条箭头；越小越稀疏。')}
                   {TEXT_FIELDS.map((field) => (
-                    <FormGroup key={field.key} label={field.label} helperText={field.hint}>
+                    <FormGroup
+                      key={field.key}
+                      label={field.label}
+                      helperText={field.hint}>
                       <InputGroup value={String(config[field.key] ?? '')}
                                   placeholder={field.placeholder}
                                   onChange={(event) => set(field.key, event.currentTarget.value)} />
@@ -212,27 +368,39 @@ export function ModelView({ meta, dataset, refresh, notify }: Props) {
                 </div>
               </details>
 
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <Switch checked={rawX} label="X 为原始计数"
-                        onChange={(event) => setRawX(event.currentTarget.checked)} />
-                <Switch checked={rawSU} label="剪接层为原始计数"
-                        onChange={(event) => setRawSU(event.currentTarget.checked)} />
+              <datalist id="cf-obs-columns">
+                {obsKeys.map((key) => <option key={key} value={key} />)}
+                <option value={AUTO_GROUP}>自动分群</option>
+              </datalist>
+
+              <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                <Switch checked={declaration.rawX} label="X 为原始计数"
+                        onChange={(event) => onDeclarationChange({ rawX: event.currentTarget.checked })} />
+                <Switch checked={declaration.rawSU} label="剪接层为原始计数"
+                        onChange={(event) => onDeclarationChange({ rawSU: event.currentTarget.checked })} />
+              </div>
+              <div className="cf-sub" style={{ marginBottom: 4 }}>
+                声明按数据版本保存（<span className="cf-mono">{version || '未选择'}</span>），与「数据」页共用；
+                切换数据集后需要重新确认。
               </div>
 
               <div style={{ marginTop: 8 }}>
                 <Button intent="primary" icon="play" loading={busy}
-                        disabled={!row.can_run || busy} onClick={run}>
+                        disabled={!ready || busy} onClick={submit}>
                   运行分析
                 </Button>
-                {active ? <span style={{ marginLeft: 8, fontSize: 11.8 }}>该配置已有任务在运行/排队：{active.id.slice(0, 8)}</span> : null}
-                {!row.can_run ? (
+                {gate?.ready ? (
+                  <span style={{ marginLeft: 8, fontSize: 11.8, color: '#1d5b3b' }}>前置条件已满足</span>
+                ) : (
                   <span style={{ marginLeft: 8, fontSize: 11.8, color: '#7a4a00' }}>
-                    前置条件未满足：先补齐上方缺失项
+                    前置条件未满足：{blockText}
                   </span>
-                ) : null}
+                )}
+                {active ? <span style={{ marginLeft: 8, fontSize: 11.8 }}>该配置已有任务在运行/排队：{active.id.slice(0, 8)}</span> : null}
               </div>
             </>
-          ) : <Spinner size={18} />}
+          ) : null}
+          {inspectState === 'ready' && !row ? <Callout compact>没有该方法的信息。</Callout> : null}
         </div>
       </div>
     </div>
