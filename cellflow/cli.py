@@ -20,14 +20,14 @@ def _cmd_run(args):
     # utf-8-sig：用户在记事本里存过的 JSON 可能带 BOM，直接 utf-8 会解析失败
     config = json.loads(args.config.read_text(encoding='utf-8-sig')) if args.config else DEFAULTS.copy()
     result = run(args.input, config, args.output)
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    print(json.dumps(result, ensure_ascii=True, indent=2))
     return 0 if result['status'] == 'completed' else 1
 
 
 def _cmd_search(args):
     from . import publicdata
     hits = publicdata.search(args.source, args.query, args.max_results)
-    print(json.dumps([h.__dict__ for h in hits], ensure_ascii=False, indent=2))
+    print(json.dumps([h.__dict__ for h in hits], ensure_ascii=True, indent=2))
     return 0
 
 

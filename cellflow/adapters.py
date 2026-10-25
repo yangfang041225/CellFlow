@@ -463,8 +463,17 @@ def _fate_block(a, config, record, log, cluster_key, use_velocity):
     estimator.predict_terminal_states()
     record('GPCCA.compute_fate_probabilities', estimator.compute_fate_probabilities,
            use_petsc=False, n_jobs=1, backend='threading', show_progress_bar=False)
-    estimator.compute_fate_probabilities(use_petsc=False, n_jobs=1, backend='threading',
-                                         show_progress_bar=False)
+    try:
+        estimator.compute_fate_probabilities(use_petsc=False, n_jobs=1, backend='threading',
+                                             show_progress_bar=False)
+    except ValueError as exc:
+        # scipy 版本差异下默认迭代求解器可能报 "value(s) are negative"；小数据改用直接求解
+        log('命运概率默认求解器失败，改用 solver=direct 重试：' + str(exc)[:200])
+        record('GPCCA.compute_fate_probabilities', estimator.compute_fate_probabilities,
+               use_petsc=False, solver='direct', n_jobs=1, backend='threading',
+               show_progress_bar=False)
+        estimator.compute_fate_probabilities(use_petsc=False, solver='direct', n_jobs=1,
+                                             backend='threading', show_progress_bar=False)
     fp = estimator.fate_probabilities
     names = [str(x) for x in fp.names]
     probs = np.asarray(fp.X, dtype=float)

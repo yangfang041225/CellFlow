@@ -12,6 +12,9 @@ from cellflow import api
 class Pagination(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        from tests.fixtures import ensure_completed_run, ensure_second_run
+        ensure_completed_run()
+        ensure_second_run()
         cls.client = TestClient(api.app)
 
     def test_runs_are_paginated_with_total(self):
