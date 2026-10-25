@@ -146,6 +146,11 @@ export const PARAMS: Record<string, ParamSpec> = {
     kind: 'int', section: 'param', min: 2, max: 10, step: 1,
     hint: 'CellRank GPCCA 的宏观状态数，通常 2–5；过多会把群切碎，终末状态需生物学确认。',
   },
+  cellrank_terminal: {
+    key: 'cellrank_terminal', label: '固定终末类别 cellrank_terminal', en: 'terminal categories',
+    kind: 'text', section: 'param', placeholder: '例如 Beta,Alpha；留空自动选择',
+    hint: '按分组类别名称填写，用英文逗号分隔。固定类别不等于已证实的生物学终末；重复、空项或未知类别会拒绝运行。',
+  },
   device: {
     key: 'device', label: '计算设备 device', en: 'device', kind: 'select', section: 'param',
     options: [
@@ -201,7 +206,7 @@ export const METHOD_PARAMS: Record<string, string[]> = {
   // _prep_expression/_scvelo_prepare + _leiden + _velocity_core + _fate_block + _diffmap_dpt
   auto: [
     'n_top_genes', 'n_pcs', 'n_neighbors', 'leiden_resolution', 'use_umap',
-    'min_shared_counts', 'velocity_model', 'max_iter', 'cellrank_n_states',
+    'min_shared_counts', 'velocity_model', 'max_iter', 'cellrank_n_states', 'cellrank_terminal',
     'root_cell', 'root_reason', 'arrow_scale', 'arrow_density', 'seed', ...ALWAYS_KEYS,
   ],
 
@@ -241,7 +246,7 @@ export const METHOD_PARAMS: Record<string, string[]> = {
   // _prep_expression + _diffmap_dpt + _group_labels + GPCCA(cellrank_n_states)
   cellrank: [
     'n_top_genes', 'n_pcs', 'n_neighbors', 'use_umap', 'seed',
-    'root_cell', 'root_reason', 'group_key', 'cellrank_n_states', ...ALWAYS_KEYS,
+    'root_cell', 'root_reason', 'group_key', 'cellrank_n_states', 'cellrank_terminal', ...ALWAYS_KEYS,
   ],
 
   // _regvelo_prep + _regvelo(grn_path, grn_source, max_epochs, device)
@@ -345,6 +350,12 @@ export function checkValue(spec: ParamSpec, raw: unknown): Checked {
       if (typeof raw !== 'string') {
         return { ok: false, error: `${spec.label}（${spec.key}）必须是文本` };
       }
+      if (spec.key === 'cellrank_terminal' && raw) {
+        const labels = raw.split(',').map((s) => s.trim());
+        if (labels.some((s) => !s) || new Set(labels).size !== labels.length) {
+          return { ok: false, error: '固定终末类别不能重复或包含空类别' };
+        }
+      }
       return { ok: true, value: raw };
     }
   }
@@ -365,9 +376,13 @@ export function buildSubmitPayload(
     if (!spec) continue;
     const raw = config[key];
     if (raw === undefined || raw === null) continue;
-    if (typeof raw === 'string' && !raw.trim() && spec.kind === 'text') continue;
+    if (typeof raw === 'string' && !raw.trim() && spec.kind === 'text'
+      && !(key === 'cellrank_terminal' && raw.length > 0)) continue;
     const checked = checkValue(spec, raw);
-    if (!checked.ok) continue; // 控件已限制范围；异常值交给后端默认，不冒提交通不过的风险
+    if (!checked.ok) {
+      if (key === 'cellrank_terminal') throw new Error(checked.error);
+      continue;
+    }
     payload[key] = checked.value;
   }
   // 数据声明来自「数据」页的人工核实，始终随任务提交（F07）。

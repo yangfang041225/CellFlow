@@ -72,6 +72,9 @@ def _load_velocity(folder: Path):
 
 
 def _direction_agreement(left: dict, right: dict):
+    from .matrix_compare import validate_payload
+    validate_payload(left)
+    validate_payload(right)
     cells = left['cells']
     if not np.array_equal(cells, right['cells']):
         index = {cell: i for i, cell in enumerate(right['cells'])}
@@ -91,7 +94,11 @@ def _direction_agreement(left: dict, right: dict):
         return None
     cosine = np.einsum('ij,ij->j', a[:, valid], b[:, valid]) / norms[valid]
     return {'genes': int(valid.sum()), 'median_gene_cosine': float(np.median(cosine)),
-            'fraction_positive': float((cosine > 0).mean())}
+            'fraction_positive': float((cosine > 0).mean()),
+            'space': 'per gene velocity vector over aligned cells; not per cell embedding',
+            'common_genes':len(genes), 'excluded_nonfinite_or_zero_norm':int((~valid).sum()),
+            'left_only_genes':[str(g) for g in left['genes'] if g not in set(right['genes'])],
+            'right_only_genes':[str(g) for g in right['genes'] if g not in set(left['genes'])]}
 
 
 def main():

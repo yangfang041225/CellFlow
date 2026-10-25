@@ -28,9 +28,9 @@ DEFAULTS = dict(method='qc', seed=42, n_top_genes=2000, n_neighbors=30, n_pcs=30
                 use_umap=True, leiden_resolution=1.0, cellrank_n_states=3,
                 cellrank_terminal='',
                 device='auto', velocity_model='stochastic',
-                arrow_scale=1.0, arrow_density=120)
+                arrow_scale=1.0, arrow_density=120, table_inference_confirmed=False)
 
-_TRUE_FALSE = ('raw_x_confirmed', 'raw_su_confirmed', 'grn_confirmed', 'use_umap')
+_TRUE_FALSE = ('raw_x_confirmed', 'raw_su_confirmed', 'grn_confirmed', 'use_umap', 'table_inference_confirmed')
 _TEXT = ('method', 'mt_prefix', 'species', 'tissue', 'sample_key', 'group_key', 'root_cell',
          'root_reason', 'grn_path', 'grn_source', 'device', 'velocity_model',
          'cellrank_terminal')
@@ -67,6 +67,10 @@ def normalize_config(config):
         raise ValueError('device 只能是 auto / cpu / cuda')
     if c['velocity_model'] not in VELOCITY_MODELS:
         raise ValueError('velocity_model 只能是 ' + ' / '.join(VELOCITY_MODELS))
+    if c['cellrank_terminal']:
+        labels = c['cellrank_terminal'].split(',')
+        if any(not x.strip() for x in labels) or len({x.strip() for x in labels}) != len(labels):
+            raise ValueError('固定终末类别不能重复或包含空类别')
     return c
 
 
@@ -141,7 +145,9 @@ def _quality_report(folder, result, data):
             if npz_cells is not None and len(npz_cells) == velocity.shape[0]:
                 same_order = (list(_np.asarray(npz_cells, dtype=str)) ==
                               list(_np.asarray(getattr(data, 'cells', []), dtype=str)))
-                add('速度矩阵细胞顺序与数据一致', same_order, soft=True)
+                add('速度矩阵细胞顺序与数据一致', same_order)
+                add('速度存档 ID 唯一', len(set(map(str, npz_cells))) == len(npz_cells)
+                    and npz_genes is not None and len(set(map(str, npz_genes))) == len(npz_genes))
             finite_ratio = float(_np.isfinite(velocity).mean()) if velocity.size else 1.0
             add('速度矩阵无 NaN/Inf', finite_ratio == 1.0)
             if finite_ratio < 0.95:
@@ -256,12 +262,11 @@ def run(input_path, config, folder):
     c = normalize_config(config)
     source = Path(input_path).resolve()
     local = folder / ('input' + source.suffix.lower())
-    shutil.copyfile(source, local)
     started = time.monotonic()
     root = Path(__file__).resolve().parents[1]
     device_info = device_mod.resolve(c['device'])
     provenance = dict(
-        input_path=str(local.resolve()), input_sha256=digest(local),
+        input_path=str(local.resolve()), input_sha256=None,
         python=sys.version, executable=sys.executable, platform=platform.platform(),
         reproduce_cwd=str((folder / 'source').resolve()),
         device=device_info.device, device_info=device_info.as_dict(),
@@ -284,9 +289,11 @@ def run(input_path, config, folder):
 
         try:
             # ---- 准备阶段（失败也要留档）
-            from .memory import require_disk
-            require_disk(folder, min_gb=1.0)
-            log(f'磁盘余量检查通过（≥1.0 GB）；输出 {folder}')
+            from .memory import task_disk_budget
+            provenance['disk_budget'] = task_disk_budget(source, folder, c)
+            shutil.copyfile(source, local)
+            provenance['input_sha256'] = digest(local)
+            log(f'输出盘/临时盘通过任务峰值估计与 1 GB 余量检查；输出 {folder}，不是空间充足证明')
             if c['grn_path']:
                 grn = Path(c['grn_path']).resolve()
                 shutil.copyfile(grn, folder / 'prior_grn.csv')
@@ -314,6 +321,8 @@ def run(input_path, config, folder):
             if reason:
                 raise RuntimeError(reason)
             data = load(local)
+            if (getattr(data, 'extras', {}).get('import') or {}).get('kind') == 'table' and not c['table_inference_confirmed']:
+                raise ValueError('未确认表格自动推断语义：请先预览确认转换为 h5ad；显式 API/CLI 原表运行须设置 table_inference_confirmed=true（方向推断及约定元数据列）')
             log(f'读取完成；当前可用内存 {require(0.5):.2f} GB')
             stage = 'validate'
             _progress(folder, provenance, stage)
@@ -357,6 +366,7 @@ def run(input_path, config, folder):
                 details = '；'.join(quality.get('warnings', [])[:3]) or '见 quality.json'
                 raise RuntimeError('结果结构校验失败：' + details)
             from .evidence import assess
+            provenance['status'] = 'completed'
             levels = assess(result, quality, provenance, folder)
             result['evidence_levels'] = levels
             provenance['evidence_levels'] = levels
@@ -386,5 +396,9 @@ def run(input_path, config, folder):
                 provenance['status'] = 'failed'
                 provenance['failed_stage'] = 'reports'
                 provenance['error'] = '报告未完整生成（A/B 缺失）：计算可能完成，但交付不完整'
+                from .evidence import assess
+                provenance['evidence_levels'] = assess(result, provenance.get('quality'), provenance, folder)
+                result['evidence_levels'] = provenance['evidence_levels']
+                dump_json(folder / 'result.json', result)
             dump_json(folder / 'provenance.json', provenance)
     return provenance

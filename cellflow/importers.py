@@ -201,11 +201,14 @@ def _header_extra_duplicates(path: Path, sep: str) -> int:
     """pandas 会把重复列名改成 g1.1，因此在读取表头时先统计原始重复。"""
     import csv
     try:
-        with open(path, encoding='utf-8', errors='replace') as handle:
+        opener = gzip.open if str(path).lower().endswith('.gz') else open
+        with opener(path, 'rt', encoding='utf-8', errors='strict') as handle:
             first = handle.readline()
         fields = next(csv.reader([first], delimiter=sep))[1:]
     except Exception:
         return 0
+    if any(not str(name).strip() for name in fields):
+        raise ValueError('表达列含空 ID')
     seen = {}
     for name in fields:
         seen[name] = seen.get(name, 0) + 1
@@ -273,7 +276,7 @@ def preview_table(path: Path, sample_rows: int = 200) -> dict:
 def import_with_options(path: Path, orientation=None, metadata_columns=None):
     """显式方向/元数据列导入；orientation 取 cells_by_genes / genes_by_cells。"""
     suffix = Path(path).suffix.lower()
-    if suffix in ('.csv', '.tsv', '.txt'):
+    if suffix in ('.csv', '.tsv', '.txt') or str(path).lower().endswith(('.csv.gz', '.tsv.gz', '.txt.gz')):
         return from_table(path, orientation=orientation, metadata_columns=metadata_columns)
     return import_any(path)
 
@@ -289,7 +292,7 @@ def _from_table_streaming(path: Path, sep: str, chunk_rows: int = 4000, flipped=
     info = estimate(path)
 
     head = pd.read_csv(path, sep=sep, index_col=0, nrows=5)
-    meta_cols = _table_metadata_columns(head)
+    meta_cols = list(metadata_columns) if metadata_columns is not None else _table_metadata_columns(head)
     numeric_cols = [c for c in head.columns if c not in meta_cols]
 
     gene_rows, cell_rows = _axes_kind(head.index)
@@ -303,6 +306,10 @@ def _from_table_streaming(path: Path, sep: str, chunk_rows: int = 4000, flipped=
             flipped = _shape_hint(head.shape[0], head.shape[1])
 
     header_duplicates = _header_extra_duplicates(path, sep)
+    if header_duplicates:
+        raise ValueError('重复表头：请在源文件中明确唯一 ID')
+    if not flipped and any(c not in head.columns for c in meta_cols):
+        raise ValueError('指定的元数据列不存在')
     notes = [f'按表格分块读取（分隔符 {"逗号" if sep == "," else "制表符"}，每块 {chunk_rows} 行）',
              f'文件 {info["file_mb"]} MB，按经验估算峰值约 {info["gb"]} GB（读取前已做内存检查）']
     if header_duplicates:
@@ -313,10 +320,20 @@ def _from_table_streaming(path: Path, sep: str, chunk_rows: int = 4000, flipped=
             notes.append(f'转置方向下忽略了 {len(meta_cols)} 个非数值列（它们描述的是基因轴）')
 
     blocks, cells, genes, metas = [], [], None, []
+    transposed_meta = {}
     missing_total = 0
     with pd.read_csv(path, sep=sep, index_col=0, chunksize=chunk_rows, low_memory=False) as reader:
         for chunk in reader:
+            if chunk.index.isna().any():
+                raise ValueError('缺失行 ID')
             if flipped:
+                if metadata_columns is not None:
+                    for name in meta_cols:
+                        if name in chunk.index:
+                            if name in transposed_meta:
+                                raise ValueError('重复元数据 ID')
+                            transposed_meta[name] = chunk.loc[name].to_numpy()
+                    chunk = chunk.loc[~chunk.index.isin(meta_cols)]
                 numeric = _strict_expression(chunk)
                 missing_total += int(numeric.isna().sum().sum())
                 dense = numeric.to_numpy(dtype=np.float32).T
@@ -352,15 +369,20 @@ def _from_table_streaming(path: Path, sep: str, chunk_rows: int = 4000, flipped=
         notes.append(f'识别到 {len(meta.columns)} 个非数值列（当作元数据，如 barcode/cluster）')
     duplicate_genes = int(pd.Index(genes or []).duplicated().sum())
     duplicate_cells = int(pd.Index(cells).duplicated().sum())
-    adata.var_names_make_unique()
-    adata.obs_names_make_unique()
+    if duplicate_genes or duplicate_cells:
+        raise ValueError('重复基因/细胞 ID；拒绝静默重命名')
+    if flipped and metadata_columns is not None:
+        if set(transposed_meta) != set(meta_cols):
+            raise ValueError('指定的元数据列不存在')
+        for name, values in transposed_meta.items():
+            adata.obs[str(name)] = pd.Series(values).where(pd.notna(values), None).to_numpy()
     if missing_total:
         notes.append(f'表达矩阵有 {missing_total} 个缺失/非数值单元，已按 0 读取（会改变观测含义，请在源头补全）')
     if duplicate_genes:
         notes.append(f'{duplicate_genes} 个重复基因名已加后缀区分（原始名未丢失，见 import 记录）')
     if duplicate_cells:
         notes.append(f'{duplicate_cells} 个重复细胞 ID 已加后缀区分')
-    result = _to_dataset(adata, notes, 'table')
+    result = _to_dataset(adata, notes, 'table', trust_axes=True)
     result.transposed = flipped or result.transposed
     result.dataset.extras['import'].update({
         'missing_values_filled': missing_total,
@@ -385,6 +407,8 @@ def from_table(path: Path, orientation=None, metadata_columns=None) -> ImportRes
             flipped=None if orientation is None else orientation == 'genes_by_cells',
             metadata_columns=metadata_columns)
     frame = pd.read_csv(path, sep=sep, index_col=0, low_memory=False)
+    if frame.index.has_duplicates or frame.index.isna().any() or _header_extra_duplicates(path, sep):
+        raise ValueError('重复/缺失 ID 或重复表头；拒绝静默重命名')
     from .memory import estimate
     info = estimate(path)
     header_duplicates = _header_extra_duplicates(path, sep)
@@ -451,7 +475,7 @@ def from_table(path: Path, orientation=None, metadata_columns=None) -> ImportRes
         notes.append(f'表头有 {header_duplicates} 个重复列名，pandas 已加后缀区分（原始名见文件）')
     adata.var_names_make_unique()
     adata.obs_names_make_unique()
-    result = _to_dataset(adata, notes, 'table')
+    result = _to_dataset(adata, notes, 'table', trust_axes=True)
     result.transposed = flipped or result.transposed
     result.dataset.extras['import'].update({
         'missing_values_filled': missing_total,

@@ -67,44 +67,11 @@ def _worker(subset: Path, config: dict, folder: Path) -> int:
     sp.save_npz(folder / 'transition.npz', transition.tocsr())
     np.savez_compressed(folder / 'reference_fate.npz', probs=probs,
                         cells=np.asarray(a.obs_names, dtype=str),
+                        terminal_labels=np.asarray([str(v) if not __import__('pandas').isna(v) else ''
+                                                    for v in estimator.terminal_states], dtype=str),
                         terminal_names=np.asarray(names, dtype=str))
     (folder / 'terminal.json').write_text(json.dumps(names, ensure_ascii=False), encoding='utf-8')
     return 0
-
-
-def _compare(candidate_probs, candidate_names, reference_probs, reference_names,
-             transition_path, n_cells):
-    common = [name for name in candidate_names if name in reference_names]
-    if not common:
-        return {'ok': False, 'error': '没有共同终末类别',
-                'candidate_terminal_states': candidate_names,
-                'reference_terminal_states': reference_names}
-    left = candidate_probs[:, [candidate_names.index(n) for n in common]]
-    right = reference_probs[:, [reference_names.index(n) for n in common]]
-    diff = np.abs(left - right)
-    max_diff = float(np.nanmax(diff)) if diff.size else 0.0
-    import scipy.sparse as sp
-    transition = sp.load_npz(transition_path).tocsr()
-    terminal_mask = (right.max(axis=1) >= 1 - 1e-12) & (right.sum(axis=1) >= 1 - 1e-12)
-    transient = np.where(~terminal_mask)[0]
-    terminal = np.where(terminal_mask)[0]
-    residual = None
-    if len(transient) and len(terminal):
-        q = transition[transient][:, transient].toarray()
-        to_terminal = transition[transient][:, terminal].toarray()
-        state = right[terminal].argmax(axis=1)
-        onehot = np.zeros((len(terminal), len(common)))
-        onehot[np.arange(len(terminal)), state] = 1
-        solved = np.linalg.solve(np.eye(len(transient)) - q, to_terminal @ onehot)
-        residual = float(np.max(np.abs(solved - left[transient])))
-    ok = bool(max_diff <= 1e-6 and residual is not None and residual <= 1e-8
-              and len(common) >= 2)
-    return {'ok': ok, 'common_terminal_states': common,
-            'candidate_terminal_states': candidate_names,
-            'reference_terminal_states': reference_names,
-            'max_abs_probability_diff': max_diff,
-            'absorption_residual': residual,
-            'shape': list(left.shape), 'cells': int(n_cells)}
 
 
 def main():
@@ -122,7 +89,7 @@ def main():
         config = json.loads(args.config_json.read_text(encoding='utf-8'))
         args.worker_output.mkdir(parents=True, exist_ok=True)
         return _worker(args.subset, config, args.worker_output)
-    args.output.mkdir(parents=True, exist_ok=True)
+    args.output.mkdir(parents=True, exist_ok=False)
     result = json.loads((args.candidate / 'cellflow' / 'result.json').read_text(encoding='utf-8'))
     fate = result.get('fate') or {}
     candidate_probs = np.asarray(fate.get('probabilities'), dtype=float)
@@ -156,9 +123,10 @@ def main():
                   'tail': ((proc.stdout or '') + (proc.stderr or ''))[-2500:]}
     else:
         payload = np.load(args.output / 'reference' / 'reference_fate.npz', allow_pickle=False)
-        report = _compare(candidate_probs, candidate_names, payload['probs'],
-                          list(payload['terminal_names']),
-                          args.output / 'reference' / 'transition.npz', candidate_probs.shape[0])
+        from .fate_compare import compare
+        import scipy.sparse as sp
+        with np.load(args.candidate / 'cellflow' / 'fate.npz', allow_pickle=False) as candidate:
+            report = compare(candidate, payload, sp.load_npz(args.output / 'reference' / 'transition.npz'))
         report['reference_preprocessing'] = 'independent: normalize_total/log1p/HVG/PCA/neighbors/DPT'
     (args.output / 'compare_cellrank_independent.json').write_text(
         json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')

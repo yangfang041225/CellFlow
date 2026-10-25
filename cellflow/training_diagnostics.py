@@ -4,9 +4,15 @@ import numpy as np
 
 def posterior_std(samples, n_cells, n_genes, n_samples):
     values = np.asarray(samples, dtype=float)
-    if values.shape == (n_samples, n_cells, n_genes):
+    if n_samples < 2:
+        raise ValueError('Posterior std requires at least two samples')
+    first = values.shape == (n_samples, n_cells, n_genes)
+    last = values.shape == (n_cells, n_genes, n_samples)
+    if first and last:
+        raise ValueError('Posterior sample axis ambiguous')
+    if first:
         axis = 0
-    elif values.shape == (n_cells, n_genes, n_samples):
+    elif last:
         axis = 2
     else:
         raise ValueError('Posterior samples unavailable or shape ambiguous: ' + str(values.shape))

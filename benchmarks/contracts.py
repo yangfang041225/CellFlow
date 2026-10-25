@@ -48,7 +48,8 @@ def validate_adata(adata, require_splicing=False, expected_shape=None) -> dict:
         if not stats['finite']:
             issues.append(f'{key} 含非有限值')
         if not stats['nonnegative']:
-            warnings.append(f'{key} 含负值（计数层应为非负）')
+            (issues if require_splicing and key in ('spliced', 'unspliced') else warnings).append(
+                f'{key} 含负值（计数层应为非负）')
     if require_splicing and not {'spliced', 'unspliced'} <= set(adata.layers):
         issues.append('缺少 spliced/unspliced 层，不能做 RNA velocity')
 

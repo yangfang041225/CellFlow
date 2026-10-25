@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node ../tools/check_phase2_model_config.mjs",
     "build": "vite build",
     "preview": "vite preview"
   },

@@ -28,23 +28,16 @@ from .reports import bundle_entries
 from .runner import DEFAULTS, normalize_config, validate
 
 def _watch_parent_process():
-    """直接关掉启动器时，让 API 跟随退出，避免留下孤儿 uvicorn。"""
+    """Only exit this API when its launch-time parent identity disappears/changes."""
     import os as _os
-    import threading
     import time as _time
     pid = int(_os.environ.get('CELLFLOW_PARENT_PID') or 0)
     if _os.name != 'nt' or not pid:
         return
-    import ctypes
-    synchronize = 0x00100000
-    kernel = ctypes.windll.kernel32
+    from .queue import _identity_matches
+    expected = _os.environ.get('CELLFLOW_PARENT_CREATED')
     while True:
-        handle = kernel.OpenProcess(synchronize, False, pid)
-        if not handle:
-            _os._exit(0)
-        code = kernel.WaitForSingleObject(handle, 0)
-        kernel.CloseHandle(handle)
-        if code == 0:          # WAIT_OBJECT_0：父进程已退出
+        if not _identity_matches(pid, expected):
             _os._exit(0)
         _time.sleep(2)
 
@@ -271,7 +264,7 @@ MAX_UPLOAD_BYTES = 1024 * 1024 * 1024
 
 
 @app.post('/api/datasets/upload')
-async def upload(file: UploadFile):
+async def upload(file: UploadFile, confirm_table_semantics: bool = False):
     """流式落盘 + 边写边限流：超限立即中止，不把整个文件读进内存。"""
     import uuid
 
@@ -280,6 +273,8 @@ async def upload(file: UploadFile):
         suffix = Path(filename).suffix.lower()
         raise HTTPException(415, f'不支持的格式：{suffix or "无扩展名"}')
     low = filename.lower()
+    if low.endswith(('.csv', '.tsv', '.txt', '.csv.gz', '.tsv.gz', '.txt.gz')) and not confirm_table_semantics:
+        raise HTTPException(409, '表格请先预览并确认；显式 API 自动推断导入须设置 confirm_table_semantics=true')
     compound = next((item for item in ALLOWED_COMPOUND if low.endswith(item)), None)
     suffix = compound or Path(low).suffix
     target_dir = ROOT / 'results' / 'inputs'
@@ -300,19 +295,23 @@ async def upload(file: UploadFile):
                 digest.update(chunk)
         if total == 0:
             raise HTTPException(400, '文件为空')
+        # Parse only our own temporary file before publishing; failed validation cannot
+        # delete another project's already referenced snapshot.
+        loaded = load_data(temporary)
+        if (loaded.extras.get('import') or {}).get('kind') == 'table' and not confirm_table_semantics:
+            raise HTTPException(409, '压缩包内含表达表格，请提取后预览确认；显式 API 自动推断须设置 confirm_table_semantics=true')
         target = target_dir / (digest.hexdigest()[:16] + suffix)
-        os.replace(temporary, target)
+        if target.exists():
+            temporary.unlink()
+        else:
+            os.link(temporary, target)
+            temporary.unlink()
     except HTTPException:
         temporary.unlink(missing_ok=True)
         raise
     except Exception as exc:
         temporary.unlink(missing_ok=True)
         raise HTTPException(400, f'保存上传文件失败：{type(exc).__name__}: {exc}')
-    try:
-        load_data(target)
-    except Exception as exc:
-        target.unlink(missing_ok=True)
-        raise HTTPException(400, f'无法解析这个文件：{type(exc).__name__}: {exc}')
     workspace.register_dataset(target, name=filename, source='上传')
     return {'ok': True, 'path': str(target), 'id': _dataset_id(target), 'name': filename}
 
@@ -614,14 +613,16 @@ async def table_preview(file: UploadFile):
     from .importers import preview_table
 
     filename = file.filename or 'data.csv'
-    suffix = Path(filename).suffix.lower()
-    if suffix not in ('.csv', '.tsv', '.txt'):
+    suffix = next((s for s in ('.csv.gz', '.tsv.gz', '.txt.gz', '.csv', '.tsv', '.txt')
+                   if filename.lower().endswith(s)), '')
+    if not suffix:
         raise HTTPException(415, '仅支持 CSV / TSV / TXT 表格预览')
     preview_dir = ROOT / 'results' / 'inputs' / '.preview'
     preview_dir.mkdir(parents=True, exist_ok=True)
     token = uuid.uuid4().hex
     target = preview_dir / f'{token}{suffix}'
     total = 0
+    project = workspace.active_project()['id']
     try:
         with open(target, 'wb') as handle:
             while True:
@@ -635,8 +636,11 @@ async def table_preview(file: UploadFile):
         if total == 0:
             raise HTTPException(400, '文件为空')
         preview = preview_table(target)
+        import time
+        from .reference_evidence import sha256
         (preview_dir / f'{token}.json').write_text(
-            json.dumps({'filename': filename}, ensure_ascii=False), encoding='utf-8')
+            json.dumps({'filename': filename, 'file': target.name, 'project': project,
+                        'sha256': sha256(target), 'expires_at': time.time() + 1800}, ensure_ascii=False), encoding='utf-8')
     except HTTPException:
         target.unlink(missing_ok=True)
         raise
@@ -655,40 +659,56 @@ def table_import(body: TableImportBody):
 
     if body.orientation not in ('cells_by_genes', 'genes_by_cells'):
         raise HTTPException(400, '方向必须是 cells_by_genes 或 genes_by_cells')
-    token = ''.join(ch for ch in body.preview_id if ch.isalnum())
+    import re
+    import time
+    import uuid
+    from .reference_evidence import sha256
+    token = body.preview_id
+    if not re.fullmatch(r'[0-9a-f]{32}', token):
+        raise HTTPException(404, '无效预览 ID')
     preview_dir = ROOT / 'results' / 'inputs' / '.preview'
-    matches = [item for item in preview_dir.glob(token + '.*')
-               if item.suffix.lower() in ('.csv', '.tsv', '.txt')] if token else []
-    if len(matches) != 1:
-        raise HTTPException(404, '预览文件不存在或已过期，请重新上传预览')
-    source = matches[0]
     meta_path = preview_dir / f'{token}.json'
-    original_name = source.name
-    if meta_path.is_file():
-        try:
-            original_name = json.loads(meta_path.read_text(encoding='utf-8')).get('filename') or original_name
-        except Exception:
-            pass
+    try:
+        meta = json.loads(meta_path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        raise HTTPException(404, '预览不存在、正在确认或已消费')
+    project = workspace.active_project()['id']
+    if meta.get('project') != project:
+        raise HTTPException(404, '预览不属于当前项目')
+    if meta.get('expires_at', 0) < time.time():
+        raise HTTPException(410, '预览已过期，请重新上传')
+    source = (preview_dir / meta['file']).resolve()
+    if not source.is_relative_to(preview_dir.resolve()) or not source.is_file():
+        raise HTTPException(404, '预览文件不存在')
+    if sha256(source) != meta.get('sha256'):
+        raise HTTPException(409, '预览后文件内容变化，请重新上传')
+    # Atomic one-use claim; concurrent confirmations cannot share this token.
+    claimed = meta_path.with_suffix('.consuming')
+    try:
+        os.rename(meta_path, claimed)
+    except OSError:
+        raise HTTPException(409, '预览已消费或正在确认')
+    target = ROOT / 'results' / 'inputs' / (uuid.uuid4().hex + '.h5ad')
+    temporary = target.with_suffix('.converting.h5ad')
     try:
         result = import_with_options(source, orientation=body.orientation,
                                      metadata_columns=list(body.metadata_columns))
+        if sha256(source) != meta['sha256']:
+            raise ValueError('转换期间预览内容变化')
+        data = result.dataset
+        to_anndata(data).write_h5ad(temporary)
+        os.link(temporary, target)
+        temporary.unlink()
+        workspace.register_dataset(target, name=meta['filename'], source='上传（已确认方向）', project=project)
     except Exception as exc:
-        raise HTTPException(400, f'导入失败：{type(exc).__name__}: {exc}')
-    data = result.dataset
-    digest = hashlib.sha256()
-    with open(source, 'rb') as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b''):
-            digest.update(chunk)
-    digest.update(str(body.orientation).encode('ascii'))
-    digest.update(json.dumps(sorted(body.metadata_columns)).encode('utf-8'))
-    target = ROOT / 'results' / 'inputs' / (digest.hexdigest()[:16] + '.h5ad')
-    try:
-        to_anndata(data).write_h5ad(target)
-    except Exception as exc:
-        raise HTTPException(500, f'保存转换结果失败：{type(exc).__name__}: {exc}')
+        temporary.unlink(missing_ok=True)
+        # This UUID target is owned solely by this failed conversion.
+        target.unlink(missing_ok=True)
+        raise HTTPException(400, f'确认导入失败：{type(exc).__name__}: {exc}')
+    finally:
+        claimed.unlink(missing_ok=True)
     source.unlink(missing_ok=True)
-    meta_path.unlink(missing_ok=True)
-    workspace.register_dataset(target, name=original_name, source='上传（已确认方向）')
+    original_name = meta['filename']
     return {'ok': True, 'path': str(target), 'id': _dataset_id(target),
             'name': original_name, 'n_cells': int(len(data.cells)),
             'n_genes': int(len(data.genes)), 'notes': result.notes,

@@ -162,6 +162,26 @@ def require_disk(path='.', min_gb=1.0):
     return free
 
 
+def task_disk_budget(source, output, config):
+    """Conservative working estimate plus reserve, not a proof of sufficient space."""
+    import tempfile
+    source = Path(source)
+    shape = _h5_shape(source) if source.suffix.lower() in ('.h5ad', '.h5', '.loom') else None
+    n, g = (shape[0], shape[1]) if shape else (0, 0)
+    hvg = min(g, int(config.get('n_top_genes', 2000)))
+    matrices = n * hvg * 8 * 8
+    kernel = n * n * 8 * 3 if config.get('method') in ('cellrank', 'auto') else 0
+    model = 256 * 1024 ** 2 if config.get('method') in ('velovi', 'regvelo') else 0
+    working = int(source.stat().st_size * 4 + matrices + kernel + model + 128 * 1024 ** 2)
+    reserve = 1024 ** 3
+    temp = Path(tempfile.gettempdir())
+    require_disk(output, min_gb=(working + reserve) / 1024 ** 3)
+    require_disk(temp, min_gb=(working + reserve) / 1024 ** 3)
+    return dict(estimated_working_bytes=working, reserve_bytes=reserve,
+                output_path=str(output), temporary_path=str(temp),
+                note='经验峰值估计，含快照/矩阵/模型/图和导出；仍可能发生运行中 ENOSPC')
+
+
 def precheck(path, limit=0.9):
     """超过可用内存的 limit 倍时返回拒绝原因；否则返回 None。"""
     info = estimate(path)

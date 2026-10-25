@@ -20,7 +20,9 @@ LOG = LOGS / 'app.log'
 ERR = LOGS / 'app-error.log'
 DIST = ROOT / 'web/dist'
 TITLE = 'CellFlow'
-PORT = 8600
+PORT = int(os.environ.get('CELLFLOW_PORT', '8600'))
+if not 1024 <= PORT <= 65535:
+    raise ValueError('CELLFLOW_PORT must be between 1024 and 65535')
 
 
 def log(message):
@@ -53,7 +55,11 @@ def start_api(port):
                '--host', '127.0.0.1', '--port', str(port), '--log-level', 'warning']
     log('启动 API: ' + subprocess.list2cmdline(command))
     flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0) if os.name == 'nt' else 0
-    env = dict(os.environ, CELLFLOW_PARENT_PID=str(os.getpid()))
+    from cellflow.queue import _process_create_time
+    created = _process_create_time(os.getpid())
+    if created is None:
+        raise RuntimeError('无法确认启动器身份，拒绝启动无身份绑定的 API')
+    env = dict(os.environ, CELLFLOW_PARENT_PID=str(os.getpid()), CELLFLOW_PARENT_CREATED=str(created))
     with (LOGS / 'api.log').open('a', encoding='utf-8') as handle:
         process = subprocess.Popen(command, cwd=ROOT, stdin=subprocess.DEVNULL,
                                    stdout=handle, stderr=handle, creationflags=flags, env=env)
@@ -97,7 +103,7 @@ def main():
             raise RuntimeError('缺少 web/dist/index.html，请先构建前端。')
         with socket.socket() as check:
             if check.connect_ex(('127.0.0.1', PORT)) == 0:
-                raise RuntimeError('8600 端口已被独立服务占用；为避免连接旧界面，本窗口不会复用未知服务。')
+                raise RuntimeError(f'{PORT} 端口已被独立服务占用；为避免连接旧界面，本窗口不会复用未知服务。')
         process, ok = start_api(PORT)
         if not ok:
             raise RuntimeError('本机 API 启动失败，详情见 logs/api.log。')

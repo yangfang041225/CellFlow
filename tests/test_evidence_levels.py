@@ -22,11 +22,11 @@ class EvidenceUnit(unittest.TestCase):
         self.assertEqual(statuses[3], 'not_reached')
         self.assertEqual(statuses[4], 'not_reached')
 
-    def test_explicit_reference_record_unlocks_l2(self):
+    def test_unbound_reference_record_does_not_unlock_l2(self):
         quality = {'ok': True, 'checks': [{'check': 'a', 'ok': True}]}
         levels = assess({}, quality, {'status': 'completed',
                                       'reference_comparison': {'kind': 'scvelo'}})
-        self.assertEqual(levels['max_level'], 2)
+        self.assertEqual(levels['max_level'], 1)
 
 
 class EvidenceInRun(unittest.TestCase):

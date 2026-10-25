@@ -21,7 +21,7 @@ class DatasetIdentity(unittest.TestCase):
 
     def test_upload_keeps_original_filename(self):
         content = b'cell,g1,g2,g3,g4,g5\nc1,1,1,1,1,1\nc2,2,2,2,2,2\n'
-        response = self.client.post('/api/datasets/upload',
+        response = self.client.post('/api/datasets/upload?confirm_table_semantics=true',
                                     files={'file': ('中文 名称.csv', io.BytesIO(content), 'text/csv')})
         self.assertEqual(response.status_code, 200)
         payload = response.json()
@@ -35,7 +35,7 @@ class DatasetIdentity(unittest.TestCase):
 
     def test_compound_gzip_suffix_is_accepted(self):
         content = gzip.compress(b'cell,g1,g2,g3,g4,g5\nc1,1,1,1,1,1\nc2,2,2,2,2,2\n')
-        response = self.client.post('/api/datasets/upload',
+        response = self.client.post('/api/datasets/upload?confirm_table_semantics=true',
                                     files={'file': ('矩阵 数据.csv.gz', io.BytesIO(content), 'application/gzip')})
         self.assertEqual(response.status_code, 200)
         payload = response.json()
