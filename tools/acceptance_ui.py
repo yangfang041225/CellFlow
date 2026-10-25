@@ -152,7 +152,7 @@ def main():
                         view.grab().save(str(output / ('view-%d.png' % state['step'])))
                         evidence['checks'].append({'view': label, **data})
                         state['step'] += 1
-                    view.page().runJavaScript('JSON.stringify({content:document.body.innerText.length>100,overflow:document.documentElement.scrollWidth>innerWidth,model_ready:[...document.querySelectorAll('button')].some(x=>x.textContent.trim()==='运行分析')})', verified)
+                    view.page().runJavaScript("""JSON.stringify({content:document.body.innerText.length>100,overflow:document.documentElement.scrollWidth>innerWidth,model_ready:[...document.querySelectorAll('button')].some(x=>x.textContent.trim()==='运行分析')})""", verified)
                 QTimer.singleShot(600, check)
             view.page().runJavaScript(expression, clicked)
 
