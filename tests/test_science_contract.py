@@ -246,6 +246,11 @@ class VeloviSmoke(unittest.TestCase):
                              f'veloVI 运行失败：{proc.stdout[-1500:]}{proc.stderr[-1500:]}')
             protocol = _read_json(out / 'velovi_protocol.json')
             self.assertEqual(protocol['velovi_input'], 'ms_mu_normalized')
+            self.assertIsNone(protocol['converged'])
+            self.assertEqual(protocol['convergence_status'], 'not_assessed')
+            self.assertTrue(protocol['training_budget_exhausted'])
+            self.assertTrue(protocol['training_diagnostics'])
+            self.assertTrue(all(item['finite'] for item in protocol['training_diagnostics'].values()))
             self.assertEqual(protocol['model_input_layers'], ['Ms', 'Mu'])
             self.assertIs(protocol['is_count_data'], False)
             self.assertEqual(protocol['setup_anndata_args'],

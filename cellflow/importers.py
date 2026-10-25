@@ -212,6 +212,25 @@ def _header_extra_duplicates(path: Path, sep: str) -> int:
     return sum(count - 1 for count in seen.values() if count > 1)
 
 
+def _table_metadata_columns(frame):
+    # Metadata is explicit: a damaged expression column must never disappear as obs.
+    metadata = {'group', 'cluster', 'batch', 'sample', 'cell_type', 'celltype',
+                'condition', 'donor', 'barcode', 'cell_id', 'label', 'cell', 'time',
+                'assigned_cluster'}
+    return [c for c in frame.columns if str(c).lower() in metadata]
+
+
+def _strict_expression(frame):
+    import pandas as pd
+    numeric = frame.apply(pd.to_numeric, errors='coerce')
+    values = numeric.to_numpy(dtype=np.float32)
+    invalid = ~np.isfinite(values)
+    if invalid.any():
+        row, col = np.argwhere(invalid)[0]
+        raise ValueError(f'表达矩阵包含缺失/非数值/非有限值：行 {frame.index[row]}，列 {frame.columns[col]}；默认拒绝，请修正源文件。')
+    return numeric
+
+
 def _from_table_streaming(path: Path, sep: str, chunk_rows: int = 4000, flipped=None) -> ImportResult:
     """大表分块读取：逐块转 float32 稀疏再 vstack，避免整表 DataFrame + 稠密矩阵双份峰值。"""
     import anndata as ad
@@ -222,8 +241,8 @@ def _from_table_streaming(path: Path, sep: str, chunk_rows: int = 4000, flipped=
     info = estimate(path)
 
     head = pd.read_csv(path, sep=sep, index_col=0, nrows=5)
-    numeric_cols = [c for c in head.columns if pd.api.types.is_numeric_dtype(head[c])]
-    meta_cols = [c for c in head.columns if c not in numeric_cols]
+    meta_cols = _table_metadata_columns(head)
+    numeric_cols = [c for c in head.columns if c not in meta_cols]
 
     gene_rows, cell_rows = _axes_kind(head.index)
     gene_cols, cell_cols = _axes_kind(head.columns)
@@ -247,26 +266,25 @@ def _from_table_streaming(path: Path, sep: str, chunk_rows: int = 4000, flipped=
 
     blocks, cells, genes, metas = [], [], None, []
     missing_total = 0
-    for chunk in pd.read_csv(path, sep=sep, index_col=0, chunksize=chunk_rows, low_memory=False):
-        if flipped:
-            numeric = chunk.apply(pd.to_numeric, errors='coerce')
-            missing_total += int(numeric.isna().sum().sum())
-            numeric = numeric.fillna(0.0)
-            dense = numeric.to_numpy(dtype=np.float32).T
-            if not cells:
-                cells = [str(name) for name in chunk.columns]
-            genes = (genes or []) + [str(name) for name in chunk.index]
-        else:
-            if genes is None:
-                genes = [str(name) for name in numeric_cols]
-            numeric = chunk[numeric_cols].apply(pd.to_numeric, errors='coerce')
-            missing_total += int(numeric.isna().sum().sum())
-            numeric = numeric.fillna(0.0)
-            dense = numeric.to_numpy(dtype=np.float32)
-            cells.extend(str(name) for name in chunk.index)
-            if meta_cols:
-                metas.append(chunk[meta_cols])
-        blocks.append(sparse.csr_matrix(dense))
+    with pd.read_csv(path, sep=sep, index_col=0, chunksize=chunk_rows, low_memory=False) as reader:
+        for chunk in reader:
+            if flipped:
+                numeric = _strict_expression(chunk)
+                missing_total += int(numeric.isna().sum().sum())
+                dense = numeric.to_numpy(dtype=np.float32).T
+                if not cells:
+                    cells = [str(name) for name in chunk.columns]
+                genes = (genes or []) + [str(name) for name in chunk.index]
+            else:
+                if genes is None:
+                    genes = [str(name) for name in numeric_cols]
+                numeric = _strict_expression(chunk[numeric_cols])
+                missing_total += int(numeric.isna().sum().sum())
+                dense = numeric.to_numpy(dtype=np.float32)
+                cells.extend(str(name) for name in chunk.index)
+                if meta_cols:
+                    metas.append(chunk[meta_cols])
+            blocks.append(sparse.csr_matrix(dense))
 
     if not blocks:
         raise ValueError('表格没有读到任何数据行')
@@ -282,7 +300,7 @@ def _from_table_streaming(path: Path, sep: str, chunk_rows: int = 4000, flipped=
     if metas and not flipped:
         meta = pd.concat(metas)
         for column in meta.columns:
-            adata.obs[str(column)] = meta[column].astype(str).to_numpy()
+            adata.obs[str(column)] = meta[column].astype(object).where(meta[column].notna(), None).to_numpy()
         notes.append(f'识别到 {len(meta.columns)} 个非数值列（当作元数据，如 barcode/cluster）')
     duplicate_genes = int(pd.Index(genes or []).duplicated().sum())
     duplicate_cells = int(pd.Index(cells).duplicated().sum())
@@ -337,16 +355,15 @@ def from_table(path: Path) -> ImportResult:
         frame = frame.T
         notes.append('原表是“基因 × 细胞”，已自动转置为“细胞 × 基因”。')
 
-    meta_cols = [c for c in frame.columns
-                 if not pd.api.types.is_numeric_dtype(frame[c])]
+    meta_cols = _table_metadata_columns(frame)
     meta = frame[meta_cols].copy() if meta_cols else None
     num = frame.drop(columns=meta_cols)
     if num.shape[1] < 5:
         raise ValueError('表格里没找到足够的数值列（基因数 < 5）；'
                          '请确认表格是表达矩阵，而不是分组信息表')
-    numeric = num.apply(pd.to_numeric, errors='coerce')
+    numeric = _strict_expression(num)
     missing_total = int(numeric.isna().sum().sum())
-    matrix = numeric.fillna(0.0).astype(np.float32)
+    matrix = numeric.astype(np.float32)
     adata = ad.AnnData(X=sparse.csr_matrix(matrix.to_numpy()),
                        obs=pd.DataFrame(index=pd.Index(frame.index.astype(str), dtype=str)),
                        var=pd.DataFrame(index=pd.Index([str(c) for c in matrix.columns], dtype=str)))

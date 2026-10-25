@@ -464,7 +464,8 @@ def _read_table_matrix(path: Path):
     gene_cols = [c for c in frame.columns if c not in obs_cols]
     if len(gene_cols) < 10:
         return None
-    matrix = frame[gene_cols].apply(pd.to_numeric, errors='coerce').fillna(0.0).astype(np.float32)
+    from .importers import _strict_expression
+    matrix = _strict_expression(frame[gene_cols]).astype(np.float32)
     adata = ad.AnnData(X=sparse.csr_matrix(matrix.to_numpy()),
                        obs=pd.DataFrame(index=pd.Index(frame.index.astype(str), dtype=str)),
                        var=pd.DataFrame(index=pd.Index([str(g) for g in gene_cols], dtype=str)))

@@ -206,31 +206,38 @@ def register_dataset(path, name=None, source=None) -> None:
 PUBLIC_IGNORED_FILE = STORE / 'public_ignored.json'
 
 
-def _public_ignored():
+def _ignored_by_project():
     if not PUBLIC_IGNORED_FILE.exists():
-        return []
-    try:
-        return [str(Path(item).resolve()) for item in json.loads(PUBLIC_IGNORED_FILE.read_text(encoding='utf-8'))]
-    except Exception:
-        return []
+        return {}
+    raw = json.loads(PUBLIC_IGNORED_FILE.read_text(encoding='utf-8'))
+    # Legacy global exclusions belong to default; other projects are independent.
+    return {'default': raw} if isinstance(raw, list) else raw
 
 
-def _write_public_ignored(items):
+def _public_ignored(project=None):
+    project = project or active_project()['id']
+    return [str(Path(item).resolve()) for item in _ignored_by_project().get(project, [])]
+
+
+def _write_public_ignored(items, project=None):
+    project = project or active_project()['id']
     STORE.mkdir(parents=True, exist_ok=True)
-    merged = sorted(set(_public_ignored()) | {str(Path(item).resolve()) for item in items})
+    state = _ignored_by_project()
+    state[project] = sorted(set(_public_ignored(project)) | {str(Path(item).resolve()) for item in items})
     tmp = PUBLIC_IGNORED_FILE.with_name(PUBLIC_IGNORED_FILE.name + '.tmp')
-    tmp.write_text(json.dumps(merged), encoding='utf-8')
+    tmp.write_text(json.dumps(state), encoding='utf-8')
     os.replace(tmp, PUBLIC_IGNORED_FILE)
 
 
 def _drop_public_ignored(path):
-    current = _public_ignored()
+    project = active_project()['id']
+    state = _ignored_by_project()
     resolved = str(Path(path).resolve())
-    if resolved not in current:
+    if resolved not in _public_ignored(project):
         return
-    STORE.mkdir(parents=True, exist_ok=True)
+    state[project] = [item for item in _public_ignored(project) if item != resolved]
     tmp = PUBLIC_IGNORED_FILE.with_name(PUBLIC_IGNORED_FILE.name + '.tmp')
-    tmp.write_text(json.dumps([item for item in current if item != resolved]), encoding='utf-8')
+    tmp.write_text(json.dumps(state), encoding='utf-8')
     os.replace(tmp, PUBLIC_IGNORED_FILE)
 
 
@@ -255,7 +262,7 @@ def unregister_dataset(path, project=None) -> bool:
             os.replace(tmp, DATASET_FILE)
         try:
             if Path(resolved).is_relative_to(PUBLIC.resolve()):
-                _write_public_ignored([resolved])
+                _write_public_ignored([resolved], project=project)
                 removed = True
         except Exception:
             pass
@@ -288,7 +295,7 @@ def list_datasets(project: Optional[str] = None) -> List[Dict]:
                 plan['original_name'] = str(original)
             add(plan)
     public = PUBLIC
-    ignored = set(_public_ignored())
+    ignored = set(_public_ignored(project))
     if public.exists():
         for path in sorted(public.iterdir()):
             if str(path.resolve()) in ignored:

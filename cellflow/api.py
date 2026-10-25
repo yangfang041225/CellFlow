@@ -84,6 +84,14 @@ def _dataset_rows() -> List[dict]:
     return rows
 
 
+def _project_dataset(path):
+    target = _safe(str(path))
+    visible = {str(Path(row['path']).resolve()) for row in _dataset_rows()}
+    if str(target) not in visible:
+        raise HTTPException(404, '当前项目中数据集不存在')
+    return target
+
+
 def _digest(path: Path, limit=256 * 1024 * 1024):
     """返回 (hash, kind)：<=256 MB 全量 sha256；更大为首尾 4 MB + 大小的部分指纹。"""
     import hashlib
@@ -325,7 +333,7 @@ def start_download(body: DownloadBody):
 def download_status(task_id: str):
     from . import downloads
     task = downloads.get(task_id)
-    if task is None:
+    if task is None or (task.get('project') or 'default') != workspace.active_project()['id']:
         raise HTTPException(404, '下载任务不存在（可能已过期或服务已重启）')
     return task
 
@@ -338,6 +346,7 @@ def download_list():
 
 @app.post('/api/downloads/{task_id}/cancel')
 def download_cancel(task_id: str):
+    download_status(task_id)
     from . import downloads
     ok, message = downloads.cancel(task_id)
     if not ok:
@@ -476,7 +485,7 @@ def dataset_detail(dataset_id: str):
 
 @app.get('/api/datasets/inspect')
 def inspect_dataset(path: str, raw_x: int = 0, raw_su: int = 0):
-    target = _safe(path)
+    target = _project_dataset(path)
     data, fmt = _payload(target)
     config = _config({'raw_x_confirmed': bool(raw_x), 'raw_su_confirmed': bool(raw_su)})
     try:
@@ -520,7 +529,7 @@ def make_demo():
 
 @app.post('/api/runs')
 def create_run(body: RunBody):
-    path = _safe(body.path)
+    path = _project_dataset(body.path)
     if body.method not in INDEX:
         raise HTTPException(400, f'未知方法：{body.method}')
     try:
@@ -542,7 +551,9 @@ def runs(state: str = '', method: str = '', dataset: str = '', q: str = '', limi
          offset: int = 0, project: str = ''):
     from .queue import count_jobs, list_jobs
     items = []
-    target = project or workspace.active_project()['id']
+    target = workspace.active_project()['id']
+    if project and project != target:
+        raise HTTPException(404, '只能列出当前项目的任务')
     limit = max(1, min(int(limit or 100), 200))
     offset = max(0, int(offset or 0))
     filters = dict(state=state or None, method=method or None,
@@ -568,6 +579,7 @@ class RenameBody(BaseModel):
 
 @app.patch('/api/runs/{job_id}')
 def rename_run(job_id: str, body: RenameBody):
+    _job(job_id)
     from .queue import rename
     ok, message = rename(job_id, body.name)
     if not ok:
@@ -577,6 +589,7 @@ def rename_run(job_id: str, body: RenameBody):
 
 @app.delete('/api/runs/{job_id}')
 def delete_run(job_id: str):
+    _job(job_id)
     from .queue import delete
     ok, message = delete(job_id)
     if not ok:
@@ -586,6 +599,7 @@ def delete_run(job_id: str):
 
 @app.post('/api/runs/{job_id}/cancel')
 def cancel_run(job_id: str):
+    _job(job_id)
     from .queue import cancel
     ok, message = cancel(job_id)
     if not ok:
@@ -596,8 +610,8 @@ def cancel_run(job_id: str):
 def _job(job_id: str) -> dict:
     from .queue import get_job
     job = get_job(job_id)
-    if job is None:
-        raise HTTPException(404, '任务不存在')
+    if job is None or job.get('project_id', 'default') != workspace.active_project()['id']:
+        raise HTTPException(404, '当前项目中任务不存在')
     return job
 
 

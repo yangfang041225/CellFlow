@@ -436,34 +436,8 @@ def _velocity_payload(a, mode, info):
 
 
 def _absorption_direct(kernel, terms, limit=1200):
-    """直接解吸收概率，裁剪极小负值并归一化；仅在 GPCCA 求解器失败时使用。"""
-    import pandas as pd
-    import scipy.sparse as sp
-
-    labels = pd.Series(terms).to_numpy()
-    term_mask = ~pd.isna(labels)
-    term_idx = np.where(term_mask)[0]
-    trans = np.where(~term_mask)[0]
-    if len(trans) > limit:
-        raise ValueError(f'直接吸收求解仅支持 ≤{limit} 个瞬态细胞；当前 {len(trans)}')
-    matrix = kernel.transition_matrix
-    if sp.issparse(matrix):
-        matrix = matrix.tocsr()
-    else:
-        matrix = sp.csr_matrix(np.asarray(matrix))
-    q = matrix[trans][:, trans].toarray()
-    r = matrix[trans][:, term_idx].toarray()
-    solution = np.linalg.solve(np.eye(len(trans)) - q, r)
-    probs = np.zeros((matrix.shape[0], len(term_idx)), dtype=float)
-    probs[trans] = solution
-    probs[term_idx, np.arange(len(term_idx))] = 1.0
-    negatives = int((probs < 0).sum())
-    probs = np.clip(probs, 0.0, None)
-    row = probs.sum(axis=1)
-    probs = np.divide(probs, row[:, None], out=np.zeros_like(probs), where=row[:, None] > 0)
-    names = [str(x) for x in terms.cat.categories]
-    counts = {str(k): int(v) for k, v in terms.value_counts().items()}
-    return names, probs, counts, negatives
+    from .absorption import solve
+    return solve(kernel, terms, limit=limit)
 
 
 def _compute_fate(estimator, kernel, log, record):
@@ -473,14 +447,16 @@ def _compute_fate(estimator, kernel, log, record):
     try:
         estimator.compute_fate_probabilities(solver='direct', **args)
         fp = estimator.fate_probabilities
-        return ([str(x) for x in fp.names], np.asarray(fp.X, dtype=float),
-                terms, {str(k): int(v) for k, v in terms.value_counts().items()}, 0)
+        from .absorption import validate as validate_fate
+        names = [str(x) for x in fp.names]
+        probs, negatives = validate_fate(kernel, terms, names, np.asarray(fp.X, dtype=float))
+        return (names, probs, terms, {str(k): int(v) for k, v in terms.value_counts().items()}, negatives)
     except ValueError as exc:
         log('GPCCA 命运概率求解失败，改用直接吸收求解：' + str(exc)[:160])
         record('cellflow.absorption_direct', _absorption_direct, limit=1200)
         names, probs, counts, negatives = _absorption_direct(kernel, terms)
         if negatives:
-            log(f'直接吸收求解出现 {negatives} 个极小负值，已裁剪到 0 并逐行归一化')
+            log(f'直接吸收求解出现 {negatives} 个极小负值，在 1e-8 容差内修正为 0（未归一化）')
         return names, probs, terms, counts, negatives
 
 
@@ -533,6 +509,11 @@ def _fate_block(a, config, record, log, cluster_key, use_velocity):
     fate = dict(terminal_states=names, terminal_state_cells=term_counts,
                 terminal_state_stats=stats, early_terminal_states=early,
                 degenerate=len(names) < 2, probabilities=probs.tolist(),
+                solver_diagnostics=getattr(kernel, '_cellflow_absorption_diagnostics',
+                                           {'solver': 'GPCCA', 'residual': 'not_exposed'}),
+                numerical_policy=dict(tolerance=1e-8, unbounded_clipping=False,
+                                      corrected_negative_entries=fate_negatives,
+                                      validation='structural_only'),
                 estimator='GPCCA', kernel=kernel_name, cluster_key=cluster_key, n_states=n_states,
                 drivers=[])
     try:
@@ -1201,14 +1182,8 @@ def _velovi(a, config, record, log, folder, result, decl=None):
     n_post = 20
     try:
         samples = model.get_velocity(n_samples=n_post, return_mean=False, return_numpy=True)
-        samples = np.asarray(samples, dtype=float)
-        if samples.ndim == 3:
-            if samples.shape[1] == a.n_obs:
-                uncertainty = samples.std(axis=0)
-            else:
-                uncertainty = np.transpose(samples, (1, 0, 2)).std(axis=0)
-        elif samples.ndim == 2 and samples.shape[0] == a.n_obs:
-            uncertainty = np.zeros_like(samples)  # 只拿到均值时明确记为 0 方差
+        from .training_diagnostics import posterior_std
+        uncertainty = posterior_std(samples, a.n_obs, a.n_vars, n_post)
     except Exception as exc:
         log('veloVI 未取得后验不确定性（不影响速度本身）：' + repr(exc))
 
@@ -1295,6 +1270,19 @@ def _velovi(a, config, record, log, folder, result, decl=None):
             result['metrics']['epochs_ran'] = epochs_ran
     except Exception as exc:
         log('veloVI 未能读取训练历史：' + repr(exc))
+    training_diagnostics = {}
+    if history is not None:
+        for key, values in history.items():
+            try:
+                curve = np.asarray(values, dtype=float).ravel()
+                finite = bool(np.isfinite(curve).all())
+                training_diagnostics[str(key)] = dict(
+                    values=[float(x) if np.isfinite(x) else None for x in curve],
+                    finite=finite, observations=int(curve.size))
+                if not finite:
+                    raise ValueError('Nonfinite veloVI training history: ' + str(key))
+            except (TypeError, AttributeError):
+                log('训练诊断无法读取：' + str(key))
     protocol = dict(
         velovi_input='ms_mu_normalized',
         model_input_layers=['Ms', 'Mu'],
@@ -1313,9 +1301,12 @@ def _velovi(a, config, record, log, folder, result, decl=None):
         min_shared_counts=int(config['min_shared_counts']),
         n_top_genes=int(min(config['n_top_genes'], a.n_vars)),
         max_epochs=max_epochs, epochs_ran=epochs_ran, elbo_train_final=elbo,
-        converged=bool(epochs_ran is not None and epochs_ran >= max_epochs),
+        converged=None, convergence_status='not_assessed',
+        training_budget_exhausted=bool(epochs_ran is not None and epochs_ran >= max_epochs),
+        training_diagnostics=training_diagnostics,
         accelerator=accelerator, device=device.device,
-        uncertainty_updates='velocity_uncertainty.npz（后验样本标准差）',
+        uncertainty_updates=('velocity_uncertainty.npz（后验样本标准差）'
+                             if uncertainty is not None else None),
     )
     result['protocol'] = protocol
     result['velovi_input'] = 'ms_mu_normalized'
@@ -1324,12 +1315,12 @@ def _velovi(a, config, record, log, folder, result, decl=None):
             json.dumps(protocol, ensure_ascii=False, indent=2, default=str), encoding='utf-8')
     except Exception as exc:
         log('veloVI 协议审计文件写入失败：' + repr(exc))
-    if protocol['converged']:
+    if protocol['training_budget_exhausted']:
         result['caveats'].append(
             '本次训练跑满了 max_epochs=%d；这只说明优化没有提前停止，不等于已经收敛。' % max_epochs)
     else:
         result['caveats'].append(
-            '本次训练到第 %s 轮就停下了（max_epochs=%d），未收敛；速度数值只作探索。'
+            '本次训练到第 %s 轮就停下了（max_epochs=%d），收敛尚未评估；速度数值只作探索。'
             % (epochs_ran, max_epochs))
 
     try:

@@ -68,7 +68,7 @@ class ApiSurface(unittest.TestCase):
             self.assertNotEqual(response.status_code, 500, f'{path} 返回 500：{response.text[:200]}')
 
     def test_run_detail_endpoints_do_not_crash(self):
-        runs = self.client.get('/api/runs', params={'project': 'all'}).json()['runs']
+        runs = self.client.get('/api/runs').json()['runs']
         completed = [item for item in runs if item['state'] == 'completed']
         if not completed:
             self.skipTest('没有已完成任务')

@@ -43,9 +43,14 @@ def run_window(root, logs, url, instance, log):
     app.setWindowIcon(QIcon(str(root / 'cellflow.ico')))
     QNetworkProxy.setApplicationProxy(QNetworkProxy(QNetworkProxy.ProxyType.NoProxy))
 
+    from urllib.parse import urlsplit
+    local_origin = urlsplit(url)
+    if local_origin.scheme != 'http' or local_origin.hostname != '127.0.0.1':
+        raise ValueError('Desktop origin must be a loopback HTTP URL')
+
     class LocalPage(QWebEnginePage):
         def acceptNavigationRequest(self, target, kind, main_frame):
-            allowed = target.scheme() == 'http' and target.host() == '127.0.0.1' and target.port() == 8600
+            allowed = target.scheme() == 'http' and target.host() == '127.0.0.1' and target.port() == local_origin.port
             if not allowed and main_frame:
                 log('Navigation rejected outside local API: ' + target.toString())
             return allowed

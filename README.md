@@ -1,3 +1,5 @@
+> 2026-10-25 严格审查整改进行中：以下历史状态/测试计数不能代表当前验收；参见[本轮修复、证据与未验证边界](docs/strict_review_followup.md)。
+
 # CellFlow · 本地单细胞动力学工作台
 
 仓库：<https://github.com/yangfang041225/CellFlow> ｜ License: [MIT](LICENSE)

@@ -2,7 +2,7 @@
 
 本轮审计修复（F02/F03/F05/F22/F23）：
 - F02 取消：领取任务时记录计算子进程 PID 与创建时间；取消先写 cancel_requested，
-  再用受控进程树（Windows `taskkill /T /F`，POSIX 进程组）结束计算进程及 supervisor，
+  再用受控进程树（Windows Job Object，POSIX 独立进程组）只结束计算树，保留 supervisor，
   确认进程真的退出后才写终态 cancelled，避免「界面已取消、计算还在跑」。
 - F03 并发：supervisor 表存单行全局租约，`start_worker` 幂等（已有存活 supervisor 时不再启动）；
   领取任务时在同一事务里检查全局并发上限 `max_concurrent`（默认 1，环境变量可配置），
@@ -44,7 +44,7 @@ DEFAULT_HEARTBEAT_SECONDS = 30.0
 DEFAULT_CANCEL_TIMEOUT = 15.0
 DEFAULT_DRAIN_WAIT_SECONDS = 600.0
 SUPERVISOR_START_GRACE = 30.0      # 暂定租约（还没写 pid）的有效期
-PID_CREATE_TOLERANCE = 2.0         # 创建时间比较容差（秒）
+PID_CREATE_TOLERANCE = 1e-6         # 创建时间比较容差（秒）
 
 # F02/F22 新增列：计算进程、心跳、租约、失联原因、尝试次数
 _EXTRA_COLUMNS = (
@@ -189,7 +189,14 @@ def find_active(store, fp, project=None):
 # ------------------------------------------------------------------ 进程工具（F02/F22）
 def _open_process(pid, access):
     import ctypes
-    return ctypes.windll.kernel32.OpenProcess(int(access), False, int(pid))
+    from ctypes import wintypes
+    api = ctypes.windll.kernel32
+    api.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    api.OpenProcess.restype = wintypes.HANDLE
+    api.CloseHandle.argtypes = [wintypes.HANDLE]
+    api.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.c_void_p]
+    api.GetProcessTimes.argtypes = [wintypes.HANDLE] + [ctypes.c_void_p] * 4
+    return api.OpenProcess(int(access), False, int(pid))
 
 
 def _pid_alive(pid):
@@ -206,11 +213,13 @@ def _pid_alive(pid):
         import ctypes
         handle = _open_process(pid, 0x1000)  # PROCESS_QUERY_LIMITED_INFORMATION
         if not handle:
-            return False
+            # Only ERROR_INVALID_PARAMETER proves this PID does not exist.
+            # Access denied/resource failures must not release queue capacity.
+            return ctypes.windll.kernel32.GetLastError() != 87
         try:
             code = ctypes.c_ulong()
             ok = ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
-            return bool(ok) and code.value == 259  # STILL_ACTIVE
+            return not ok or code.value == 259  # unknown state is conservatively alive
         finally:
             ctypes.windll.kernel32.CloseHandle(handle)
     try:
@@ -265,22 +274,21 @@ def _process_create_time(pid):
 
 
 def _identity_matches(pid, created):
-    """PID 存在且（有创建时间时）创建时间一致，才认为仍是同一个进程。
+    """PID 存在且创建时间一致，才认为仍是同一个进程。
 
-    没有创建时间的旧记录只能按 PID 判断（这是旧库的兼容路径）。
+    缺失或无法读取身份时禁止杀进程。
     """
     if not _pid_alive(pid):
         return False
     if created in (None, '', 0, 0.0):
-        return True
+        return False
     current = _process_create_time(pid)
     if current is None:
-        # 拿不到创建时间时宁可不动手，避免误杀
-        return True
+        return False
     try:
         return abs(float(current) - float(created)) <= PID_CREATE_TOLERANCE
     except (TypeError, ValueError):
-        return True
+        return False
 
 
 def _terminate_tree(pid):
@@ -318,7 +326,11 @@ def _terminate_tree(pid):
             ctypes.windll.kernel32.CloseHandle(handle)
     import signal
     try:
-        os.killpg(os.getpgid(pid), signal.SIGTERM)
+        group = os.getpgid(pid)
+        if group == pid:
+            os.killpg(group, signal.SIGTERM)
+        else:
+            os.kill(pid, signal.SIGTERM)
         return True
     except OSError:
         try:
@@ -543,14 +555,19 @@ def cancel(job_id, store=STORE):
                    (time.time(), job_id))
 
     targets = []
-    for pid, created in ((row.get('child_pid'), row.get('child_created')),
-                         (row.get('pid'), row.get('pid_created'))):
-        if int(pid or 0) == os.getpid():
-            continue  # 绝不结束调用方自己
-        if _identity_matches(pid, created) and int(pid) not in targets:
-            targets.append(int(pid))
-    for pid in targets:
-        _terminate_tree(pid)
+    pid, created = row.get('child_pid'), row.get('child_created')
+    if pid and _pid_alive(pid) and not _identity_matches(pid, created):
+        return False, '已请求取消；进程身份无法验证，未执行终止'
+    if _identity_matches(pid, created) and int(pid) != os.getpid():
+        targets.append(int(pid))
+        if os.name == 'nt':
+            from .process_job import terminate, job_name
+            if not terminate(job_name(store, job_id)):
+                return False, '已请求取消；无法打开受控 Job Object，未按 PID 强制终止'
+        else:
+            _terminate_tree(pid)
+    if not targets:
+        return False, '已请求取消，等待 supervisor 确认（启动期间不提前写终态）'
     alive = _wait_dead(targets, _cancel_timeout())
 
     now = time.time()
@@ -585,9 +602,19 @@ def recover_orphans(store=STORE):
             expired = lease is not None and now > float(lease)
             if alive and not expired:
                 continue
-            if not alive and _identity_matches(row['child_pid'], row['child_created']):
-                # supervisor 已死但计算子进程还在：清理孤儿，避免留下无主计算
-                _terminate_tree(row['child_pid'])
+            if row['pid'] and _pid_alive(row['pid']) and (row['pid_created'] in (None, '', 0) or _process_create_time(row['pid']) is None):
+                continue  # 身份未知时不能释放并发名额或误杀
+            if row['child_pid'] and _pid_alive(row['child_pid']) and (row['child_created'] in (None, '', 0) or _process_create_time(row['child_pid']) is None):
+                continue
+            if _identity_matches(row['child_pid'], row['child_created']):
+                if os.name == 'nt':
+                    from .process_job import terminate, job_name
+                    if not terminate(job_name(store, row['id'])):
+                        continue
+                else:
+                    _terminate_tree(row['child_pid'])
+                if _wait_dead([row['child_pid']], _cancel_timeout()):
+                    continue
             reason = '任务租约超时' if expired else 'worker 进程已不存在'
             db.execute("UPDATE jobs SET state='failed', failure_kind='interrupted', updated=?, "
                        "error=?, pid=NULL, child_pid=NULL, lease_until=NULL WHERE id=?",
@@ -623,6 +650,8 @@ def _supervisor_alive(row):
         return False
     if row['pid'] and _identity_matches(row['pid'], row['pid_created']):
         return True
+    if row['pid'] and _pid_alive(row['pid']) and (row['pid_created'] in (None, '', 0) or _process_create_time(row['pid']) is None):
+        return True  # cannot safely replace an inaccessible live supervisor
     # 暂定租约：刚启动、worker 还没写 pid；给一个短保护期避免重复拉起
     if not row['pid'] and row['token']:
         return (time.time() - float(row['heartbeat'] or 0)) < SUPERVISOR_START_GRACE
@@ -761,7 +790,9 @@ def _finalize(store, job_id, state, error='', failure_kind=None):
         row = db.execute('SELECT state, cancel_requested FROM jobs WHERE id=?', (job_id,)).fetchone()
         if row is None:
             return
-        if row['state'] == 'cancelled' or (row['cancel_requested'] and state != 'completed'):
+        if row['state'] not in ('running', 'cancelled'):
+            return
+        if row['state'] == 'cancelled' or row['cancel_requested']:
             db.execute("UPDATE jobs SET state='cancelled', updated=?, error=?, failure_kind=NULL, "
                        "pid=NULL, child_pid=NULL, lease_until=NULL WHERE id=?",
                        (time.time(), '用户取消', job_id))
@@ -797,21 +828,50 @@ def _run_job(store, job):
                    OMP_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1',
                    MKL_NUM_THREADS='1', NUMBA_NUM_THREADS='1')
         log = (store / (job_id + '.worker.log')).open('w', encoding='utf-8')
+        job_handle = None
         try:
-            proc = subprocess.Popen([job['runtime'], '-m', 'cellflow.cli', 'run',
-                                     '--input', job['input'], '--config', str(config_path),
-                                     '--output', job['output']],
-                                    cwd=ROOT, env=env, stdin=subprocess.DEVNULL,
+            if not Path(job['runtime']).is_file():
+                raise FileNotFoundError('计算解释器不存在：' + str(job['runtime']))
+            command = [job['runtime'], '-m', 'cellflow.cli', 'run',
+                       '--input', job['input'], '--config', str(config_path),
+                       '--output', job['output']]
+            job_handle = None
+            if os.name == 'nt':
+                from .process_job import create, job_name
+                name = job_name(store, job_id)
+                job_handle = create(name)
+                ready_path = store / (job_id + '.job-ready')
+                ready_path.unlink(missing_ok=True)
+                command = [sys.executable, '-m', 'cellflow.process_job', name, str(ready_path), *command]
+            proc = subprocess.Popen(command, cwd=ROOT, env=env, stdin=subprocess.DEVNULL,
                                     stdout=log, stderr=log,
-                                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+                                    start_new_session=os.name != 'nt')
+            if os.name == 'nt':
+                deadline = time.monotonic() + 10
+                while not ready_path.exists() and proc.poll() is None:
+                    if time.monotonic() > deadline:
+                        proc.kill()  # wrapper has not started any computation yet
+                        proc.wait()
+                        raise RuntimeError('Job Object assignment handshake timed out')
+                    time.sleep(0.02)
+                if not ready_path.exists():
+                    raise RuntimeError('Job Object assignment failed; computation was not started')
             created = _process_create_time(proc.pid)
             _record_child(store, job_id, proc.pid, created)
             # 取消可能发生在「领取」与「启动 CLI」之间：启动后立刻复查
             fresh = _job_row(store, job_id)
             if fresh is not None and fresh.get('cancel_requested'):
-                _terminate_tree(proc.pid)
+                if os.name == 'nt':
+                    from .process_job import terminate
+                    terminate(name)
+                else:
+                    _terminate_tree(proc.pid)
             returncode = proc.wait()
         finally:
+            if job_handle is not None:
+                from .process_job import close
+                close(job_handle)
             log.close()
 
         if returncode == 0:

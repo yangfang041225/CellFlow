@@ -24,13 +24,8 @@ class DataContract(unittest.TestCase):
         path.write_text('cell,g1,g1,g2,g3,g4,g5\n'
                         'c1,1,,2,3,4,5\n'
                         'c2,0,1,2,3,4,5\n', encoding='utf-8')
-        result = importers.import_any(path)
-        extras = result.dataset.extras['import']
-        self.assertGreaterEqual(extras['missing_values_filled'], 1)
-        self.assertGreaterEqual(extras['duplicate_header_names'], 1)
-        notes = ' '.join(result.notes)
-        self.assertIn('缺失', notes)
-        self.assertIn('重复列名', notes)
+        with self.assertRaisesRegex(ValueError, '缺失'):
+            importers.import_any(path)
 
     def test_metadata_missing_kept_as_empty_not_string(self):
         path = self.root / 'meta.csv'
@@ -42,6 +37,18 @@ class DataContract(unittest.TestCase):
         self.assertIn(None, values)
         self.assertNotIn('None', values)
         self.assertNotIn('nan', values)
+
+    def test_streaming_metadata_null_and_late_invalid_expression(self):
+        path = self.root / 'stream.csv'
+        path.write_text('cell,group,g1,g2,g3,g4,g5\nc1,,1,1,1,1,1\nc2,B,2,2,2,2,2\n', encoding='utf-8')
+        result = importers._from_table_streaming(path, ',', chunk_rows=1, flipped=False)
+        self.assertIsNone(result.dataset.obs['group'][0])
+        for bad in ['', 'text', 'inf']:
+            path.write_text('cell,group,g1,g2,g3,g4,g5\nc1,A,1,1,1,1,1\nc2,B,' + bad + ',2,2,2,2\n', encoding='utf-8')
+            with self.assertRaisesRegex(ValueError, '默认拒绝'):
+                importers._from_table_streaming(path, ',', chunk_rows=1, flipped=False)
+            with self.assertRaisesRegex(ValueError, '默认拒绝'):
+                importers.from_table(path)
 
     def test_missing_group_is_rejected_not_turned_into_cluster(self):
         a = ad.AnnData(X=sparse.csr_matrix(np.ones((3, 5), dtype=np.float32)))
