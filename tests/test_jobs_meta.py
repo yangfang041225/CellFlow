@@ -52,9 +52,9 @@ class JobsMeta(unittest.TestCase):
             self.assertFalse(again)
             self.assertIn('不能取消', reason)
 
-    def test_api_cancel_unknown_job_returns_400(self):
+    def test_api_cancel_unknown_job_returns_404(self):
         response = self.client.post('/api/runs/not-a-real-job/cancel')
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 404)
 
 
     def test_health_reports_queue_and_device(self):

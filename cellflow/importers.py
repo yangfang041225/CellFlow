@@ -215,7 +215,8 @@ def _header_extra_duplicates(path: Path, sep: str) -> int:
 def _table_metadata_columns(frame):
     # Metadata is explicit: a damaged expression column must never disappear as obs.
     metadata = {'group', 'cluster', 'batch', 'sample', 'cell_type', 'celltype',
-                'condition', 'donor', 'barcode', 'cell_id', 'label', 'cell', 'time'}
+                'condition', 'donor', 'barcode', 'cell_id', 'label', 'cell', 'time',
+                'assigned_cluster'}
     return [c for c in frame.columns if str(c).lower() in metadata]
 
 

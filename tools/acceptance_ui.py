@@ -49,7 +49,7 @@ def main():
 
         evidence = {'renderer': 'production QtWebEngine + built React', 'checks': [], 'ok': False}
         labels = ['概览', '数据', '模型分析', '分析结果', '报告']
-        state = {'step': 0, 'pending': False, 'ticks': 0}
+        state = {'step': 0, 'pending': False, 'ticks': 0, 'dataset': False, 'submitted': False}
 
         def finish(error=None):
             evidence['error'] = error
@@ -60,7 +60,7 @@ def main():
 
         def inspect():
             state['ticks'] += 1
-            if state['ticks'] > 120:
+            if state['ticks'] > 240:
                 finish('UI acceptance timeout')
                 return
             if state['pending']:
@@ -69,9 +69,62 @@ def main():
             view = next((w.findChild(QWebEngineView) for w in windows if w.findChild(QWebEngineView)), None)
             if view is None:
                 return
+            if not state['dataset']:
+                state['pending'] = True
+                expression = """(() => {
+                  const select = document.querySelector('.cf-side select');
+                  const option = select && [...select.options].find(x=>x.textContent.includes('模拟'));
+                  if (!option) return false;
+                  select.value=option.value; select.dispatchEvent(new Event('change',{bubbles:true}));
+                  const original=window.fetch;
+                  window.fetch=async (...args)=>{
+                    const response=await original(...args);
+                    if (String(args[0]).endsWith('/api/runs') && args[1]?.method==='POST')
+                      response.clone().json().then(x=>window.__acceptanceJob=x.id);
+                    return response;
+                  };
+                  return true;
+                })()"""
+                def selected(ok):
+                    state['pending'] = False
+                    state['dataset'] = bool(ok)
+                view.page().runJavaScript(expression, selected)
+                return
             if state['step'] >= len(labels):
-                view.grab().save(str(output / 'qt-react.png'))
-                finish()
+                state['pending'] = True
+                expression = """(() => {
+                  if (window.__acceptanceDetail) return JSON.stringify(window.__acceptanceDetail);
+                  if (window.__acceptanceJob) {
+                    fetch('/api/runs/'+window.__acceptanceJob).then(x=>x.json()).then(x=>window.__acceptanceDetail=x);
+                    return '{}';
+                  }
+                  [...document.querySelectorAll('[role=menuitem]')].find(x=>x.textContent.trim()==='模型分析')?.click();
+                  const declaration=[...document.querySelectorAll('label')].find(x=>x.textContent.trim()==='X 为原始计数');
+                  const input=declaration?.querySelector('input');
+                  if (input && !input.checked) { input.click(); return '{}'; }
+                  const button=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='运行分析');
+                  if (button && !button.disabled && !window.__acceptanceSubmitted) {
+                    window.__acceptanceSubmitted=true; button.click();
+                  }
+                  return '{}';
+                })()"""
+                def submitted(raw):
+                    state['pending'] = False
+                    detail = json.loads(raw or '{}')
+                    status = detail.get('state')
+                    if status in ('failed', 'cancelled'):
+                        finish('UI-submitted computation failed: ' + str(detail.get('error')))
+                    elif status == 'completed':
+                        if not detail.get('quality', {}).get('ok') or not detail.get('figures'):
+                            finish('UI-submitted computation lacks quality/figures')
+                            return
+                        evidence['checks'].append(dict(scenario='UI declaration and run submission through real queue',
+                                                       job=detail['id'], state=status, quality_ok=True))
+                        view.grab().save(str(output / 'qt-react.png'))
+                        finish()
+                    else:
+                        view.page().runJavaScript('window.__acceptanceDetail=null')
+                view.page().runJavaScript(expression, submitted)
                 return
             label = labels[state['step']]
             state['pending'] = True
@@ -91,13 +144,15 @@ def main():
                     def verified(raw):
                         state['pending'] = False
                         data = json.loads(raw)
+                        if label == '模型分析' and not data['model_ready']:
+                            return
                         if not data['content'] or data['overflow']:
                             finish('Empty content or horizontal overflow in ' + label)
                             return
                         view.grab().save(str(output / ('view-%d.png' % state['step'])))
                         evidence['checks'].append({'view': label, **data})
                         state['step'] += 1
-                    view.page().runJavaScript('JSON.stringify({content:document.body.innerText.length>100,overflow:document.documentElement.scrollWidth>innerWidth})', verified)
+                    view.page().runJavaScript('JSON.stringify({content:document.body.innerText.length>100,overflow:document.documentElement.scrollWidth>innerWidth,model_ready:[...document.querySelectorAll('button')].some(x=>x.textContent.trim()==='运行分析')})', verified)
                 QTimer.singleShot(600, check)
             view.page().runJavaScript(expression, clicked)
 

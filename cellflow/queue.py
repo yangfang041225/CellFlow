@@ -324,7 +324,11 @@ def _terminate_tree(pid):
             ctypes.windll.kernel32.CloseHandle(handle)
     import signal
     try:
-        os.killpg(os.getpgid(pid), signal.SIGTERM)
+        group = os.getpgid(pid)
+        if group == pid:
+            os.killpg(group, signal.SIGTERM)
+        else:
+            os.kill(pid, signal.SIGTERM)
         return True
     except OSError:
         try:
@@ -818,7 +822,10 @@ def _run_job(store, job):
                    OMP_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1',
                    MKL_NUM_THREADS='1', NUMBA_NUM_THREADS='1')
         log = (store / (job_id + '.worker.log')).open('w', encoding='utf-8')
+        job_handle = None
         try:
+            if not Path(job['runtime']).is_file():
+                raise FileNotFoundError('计算解释器不存在：' + str(job['runtime']))
             command = [job['runtime'], '-m', 'cellflow.cli', 'run',
                        '--input', job['input'], '--config', str(config_path),
                        '--output', job['output']]
