@@ -19,7 +19,7 @@
 | F11 veloVI 协议 | 已修 | 按 scvi-tools 1.2.0：S/U 计数校验 → normalize/log1p/moments → `Ms/Mu` 训练；输出协议与审计文件 | 真实 smoke（2 epochs，仅接口，不声称收敛）；`test_science_contract` 13 项 |
 | F12 箭头几何 | 已修 | 点与向量共用 `ScreenAffine`；默认等比例，`stretch` 保留 5.857 探针 | `test_figures_semantics`：45°/基向量/斜率 |
 | F13 绘图语义 | 已修 | `FigureSpec` 统一标题/色阶/字段；PAGA 原始对称矩阵 0–1；命运概率来自声明字段 | 同上；8 张图 spec 落盘 |
-| F14 报告真实性 | 部分 | `executed_steps` 从 calls/provenance 还原；未执行速度不再宣称；推断移入派生 | 模板仍为固定结构，未逐句声明证据字段 |
+| F14 报告真实性 | 已修 | 4.10 四层解释（观察/派生/推断/假说）由 `executed_steps` 驱动；未执行速度不再宣称；推断与观测分开 | `test_figures_semantics`（无速度/三模式/叙述断言） |
 | F15 质量闸门 | 已修 | `quality.ok=False` 抛错并 failed，不写 completed；硬/软检查分开 | `test_quality_failure_blocks_completed` |
 | F16 HTML 安全 | 已修 | 数据单元转义；最终 HTML 白名单清洗；CSP；无脚本/事件属性 | `test_html_safety` 11 项；离线渲染验证 |
 | F17 PDF | 已修 | 设备像素 + 96 dpi 排版；A4、页眉页码；正文中位 10.5 pt | pypdf 实测 11 页；B 报告 9.75 pt |
