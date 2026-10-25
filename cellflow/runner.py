@@ -284,6 +284,9 @@ def run(input_path, config, folder):
 
         try:
             # ---- 准备阶段（失败也要留档）
+            from .memory import require_disk
+            require_disk(folder, min_gb=1.0)
+            log(f'磁盘余量检查通过（≥1.0 GB）；输出 {folder}')
             if c['grn_path']:
                 grn = Path(c['grn_path']).resolve()
                 shutil.copyfile(grn, folder / 'prior_grn.csv')
