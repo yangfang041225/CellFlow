@@ -233,15 +233,13 @@ class QueueLifecycleTest(unittest.TestCase):
                     lease_until=time.time() + 600)
 
         ok, message = queue.cancel('job-tree', store=self.store)
-        self.assertTrue(ok, message)
-        self.assertFalse(queue._pid_alive(parent.pid), '取消后 supervisor 进程不应存活')
-        self.assertFalse(queue._pid_alive(child_pid), '取消后计算子进程不应存活')
-        row = _row(self.store, 'job-tree')
-        self.assertEqual(row['state'], 'cancelled')
-        self.assertEqual(row['cancel_requested'], 1)
-        self.assertIn('取消', row['error'])
-        self.assertIsNone(row['pid'])
-        self.assertIsNone(row['child_pid'])
+        if os.name == 'nt':
+            self.assertFalse(ok, '未登记到 Job Object 的旧任务不得按 PID 强杀')
+            self.assertTrue(queue._pid_alive(child_pid))
+        else:
+            self.assertTrue(ok, message)
+            self.assertFalse(queue._pid_alive(child_pid))
+        self.assertTrue(queue._pid_alive(parent.pid), '取消不能结束 supervisor')
 
     def test_cancel_terminates_orphan_compute_child(self):
         parent, child_pid = _spawn_tree()
@@ -259,9 +257,12 @@ class QueueLifecycleTest(unittest.TestCase):
         self.assertTrue(queue._pid_alive(child_pid), '子进程应当成为孤儿')
 
         ok, message = queue.cancel('job-orphan', store=self.store)
-        self.assertTrue(ok, message)
-        self.assertFalse(queue._pid_alive(child_pid), '孤儿计算子进程也必须被结束')
-        self.assertEqual(_row(self.store, 'job-orphan')['state'], 'cancelled')
+        if os.name == 'nt':
+            self.assertFalse(ok, '缺少受控 Job Object 时必须 fail closed')
+            self.assertTrue(queue._pid_alive(child_pid))
+        else:
+            self.assertTrue(ok, message)
+            self.assertFalse(queue._pid_alive(child_pid))
 
     def test_cancel_does_not_kill_reused_pid(self):
         innocent = _spawn_sleep()
@@ -271,9 +272,9 @@ class QueueLifecycleTest(unittest.TestCase):
                     pid_created=(created or 0.0) + 3600.0, lease_until=time.time() + 600)
 
         ok, message = queue.cancel('job-reuse', store=self.store)
-        self.assertTrue(ok, message)
-        self.assertTrue(queue._pid_alive(innocent.pid), 'PID 被复用时不能误杀无关进程')
-        self.assertEqual(_row(self.store, 'job-reuse')['state'], 'cancelled')
+        self.assertFalse(ok, '由 supervisor 处理缺少可验证计算身份的记录')
+        self.assertTrue(queue._pid_alive(innocent.pid))
+        self.assertEqual(_row(self.store, 'job-reuse')['cancel_requested'], 1)
 
     def test_running_job_records_compute_process(self):
         shim = _write_shim(self.root / 'shim', seconds=4)
@@ -301,9 +302,10 @@ class QueueLifecycleTest(unittest.TestCase):
         self.assertIsNone(final['lease_until'])
 
     def test_cancel_real_worker_stops_compute_and_resumes_queue(self):
-        """真实 supervisor 链路：取消后计算子进程与 supervisor 都退出，后续提交能继续调度。"""
+        """真实 supervisor 链路：取消仅结束计算树，预先排队任务自动继续。"""
         shim = _write_shim(self.root / 'shim', seconds=6)
         job = _shim_job(self.store, shim, seed=61)
+        next_job = _shim_job(self.store, shim, seed=62)
         self.assertTrue(queue.start_worker(store=self.store))
 
         def running_with_child():
@@ -316,14 +318,13 @@ class QueueLifecycleTest(unittest.TestCase):
         ok, message = queue.cancel(job, store=self.store)
         self.assertTrue(ok, message)
         self.assertFalse(queue._pid_alive(row['child_pid']), '取消后计算子进程必须退出')
-        self.assertFalse(queue._pid_alive(row['pid']), '取消后 supervisor 也必须退出')
+        self.assertTrue(queue._pid_alive(row['pid']), '取消后 supervisor 必须继续调度')
         final = _row(self.store, job)
         self.assertEqual(final['state'], 'cancelled')
         self.assertIn('取消', final['error'])
 
         # supervisor 被结束，租约残留在库里；新提交应能重新拉起 worker 并继续调度
-        next_job = _shim_job(self.store, shim, seed=62)
-        self.assertTrue(queue.start_worker(store=self.store), '旧 supervisor 已死，应能重新启动')
+        self.assertFalse(queue.start_worker(store=self.store), '既有 supervisor 仍然存活')
         final = _wait_state(self.store, next_job, timeout=180)
         self.assertIsNotNone(final)
         self.assertEqual(final['state'], 'completed', self._worker_log())

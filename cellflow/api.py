@@ -325,7 +325,7 @@ def start_download(body: DownloadBody):
 def download_status(task_id: str):
     from . import downloads
     task = downloads.get(task_id)
-    if task is None:
+    if task is None or (task.get('project') or 'default') != workspace.active_project()['id']:
         raise HTTPException(404, '下载任务不存在（可能已过期或服务已重启）')
     return task
 
@@ -338,6 +338,7 @@ def download_list():
 
 @app.post('/api/downloads/{task_id}/cancel')
 def download_cancel(task_id: str):
+    download_status(task_id)
     from . import downloads
     ok, message = downloads.cancel(task_id)
     if not ok:
@@ -568,6 +569,7 @@ class RenameBody(BaseModel):
 
 @app.patch('/api/runs/{job_id}')
 def rename_run(job_id: str, body: RenameBody):
+    _job(job_id)
     from .queue import rename
     ok, message = rename(job_id, body.name)
     if not ok:
@@ -577,6 +579,7 @@ def rename_run(job_id: str, body: RenameBody):
 
 @app.delete('/api/runs/{job_id}')
 def delete_run(job_id: str):
+    _job(job_id)
     from .queue import delete
     ok, message = delete(job_id)
     if not ok:
@@ -586,6 +589,7 @@ def delete_run(job_id: str):
 
 @app.post('/api/runs/{job_id}/cancel')
 def cancel_run(job_id: str):
+    _job(job_id)
     from .queue import cancel
     ok, message = cancel(job_id)
     if not ok:
@@ -596,8 +600,8 @@ def cancel_run(job_id: str):
 def _job(job_id: str) -> dict:
     from .queue import get_job
     job = get_job(job_id)
-    if job is None:
-        raise HTTPException(404, '任务不存在')
+    if job is None or job.get('project_id', 'default') != workspace.active_project()['id']:
+        raise HTTPException(404, '当前项目中任务不存在')
     return job
 
 

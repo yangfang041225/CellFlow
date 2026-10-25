@@ -84,7 +84,7 @@ def _quality_report(folder, result, data):
     """结构性 + 一致性校验：不评价生物学对错，只检查结果是否自洽、可读。
 
     hard=True 的失败会让 quality.ok=False（结构性错误）；
-    soft=True 只写入 warnings（例如命运概率未严格归一），不否定计算完成。
+    soft=True 只写入 warnings；命运概率结构错误属于硬失败。
     """
     checks, warnings = [], []
 
@@ -172,15 +172,18 @@ def _quality_report(folder, result, data):
     if probabilities:
         try:
             array = _np.asarray(probabilities, dtype=float)
+            add('命运概率二维且列数与终末类别一致',
+                array.ndim == 2 and array.shape[1] == len(fate.get('terminal_states', [])))
+            add('命运概率无 NaN/Inf', bool(_np.isfinite(array).all()))
             add('命运概率行数与细胞数一致', array.shape[0] == n_cells,
                 f'{array.shape[0]} vs {n_cells}')
             if array.ndim == 2 and array.shape[0] == n_cells:
-                in_range = bool(((array >= -1e-3) & (array <= 1 + 1e-3)).all())
-                add('命运概率在 0–1 范围内', in_range, soft=True)
+                in_range = bool(((array >= -1e-8) & (array <= 1 + 1e-8)).all())
+                add('命运概率在 0–1 范围内', in_range)
                 row_sums = array.sum(axis=1)
-                close = bool(_np.allclose(row_sums, 1.0, atol=5e-3))
+                close = bool(_np.allclose(row_sums, 1.0, atol=1e-8, rtol=0))
                 add('命运概率每行之和约为 1', close,
-                    f'偏差最大 {abs(row_sums - 1.0).max():.3g}', soft=True)
+                    f'偏差最大 {abs(row_sums - 1.0).max():.3g}')
         except Exception as exc:
             add('命运概率可读取', False, repr(exc))
 

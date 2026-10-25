@@ -280,7 +280,7 @@ class ReportIsInert(unittest.TestCase):
         self.assertIn("default-src 'self'", policy)          # 默认仅本站资源
         self.assertIn("script-src 'none'", policy)           # 不允许任何脚本
         self.assertIn("style-src 'self' 'unsafe-inline'", policy)   # 允许内联样式
-        self.assertIn("img-src 'self' data: file:", policy)  # 离线 file:// 打开仍显示图
+        self.assertNotIn("file:", policy)  # 不允许任意本机 file URL
         self.assertIn("object-src 'none'", policy)
         self.assertNotIn("'unsafe-eval'", policy)
         self.assertNotIn('<script', text.lower())

@@ -51,6 +51,18 @@ class Projects(unittest.TestCase):
         self.assertTrue(any(str(Path(row['path']).resolve()) == str(source.resolve())
                             for row in workspace.list_datasets(project=other['id'])))
 
+    def test_public_exclusion_is_project_scoped(self):
+        from unittest.mock import patch
+        path = self.store / 'public' / 'real.h5ad'
+        path.parent.mkdir()
+        path.write_bytes(b'test')
+        with patch.object(workspace, 'PUBLIC', path.parent), patch.object(
+                workspace, 'PUBLIC_IGNORED_FILE', self.store / 'ignored.json'):
+            workspace.unregister_dataset(path, project='default')
+            self.assertIn(str(path.resolve()), workspace._public_ignored('default'))
+            self.assertNotIn(str(path.resolve()), workspace._public_ignored('other'))
+            self.assertTrue(path.is_file())
+
     def test_queue_filters_by_project(self):
         from cellflow import queue
         store = self.store / 'results'

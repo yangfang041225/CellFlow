@@ -1,3 +1,5 @@
+> 2026-10-25 严格审查整改进行中：以下历史状态/测试计数不能代表当前验收；参见[本轮修复、证据与未验证边界](strict_review_followup.md)。
+
 # 测试报告
 
 更新时间：2026-10-25。所有命令在本机 `C:\Users\mtgmc\Documents\Codex\2026-10-24\referenced-chatgpt-conversation-this-is-an\outputs\CellFlow` 执行。

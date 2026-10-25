@@ -1193,7 +1193,7 @@ def _render_markdown(text):
 # 数据单元（数据集名、obs 值、基因名、config 文本、错误信息、路径）进入 Markdown
 # 之前先做 HTML 转义；最终 HTML 再走一遍白名单清洗 + CSP，双重防线。
 CSP_CONTENT = ("default-src 'self'; script-src 'none'; "
-               "img-src 'self' data: file:; style-src 'self' 'unsafe-inline'; "
+               "img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
                "base-uri 'none'; form-action 'none'; object-src 'none'")
 
 
@@ -1277,8 +1277,13 @@ def _clean_url(value, tag):
         return text if lowered.startswith(_SAFE_DATA_IMAGE) else None
     if any(lowered.startswith(bad) for bad in _BAD_SCHEMES):
         return None
-    if lowered.startswith('file:') and tag != 'img':
+    if lowered.startswith('file:'):
         return None
+    if tag == 'img':
+        from urllib.parse import unquote, urlsplit
+        decoded = unquote(text).replace('\\', '/')
+        if urlsplit(decoded).scheme or decoded.startswith('/') or '..' in decoded.split('/'):
+            return None
     return text
 
 
