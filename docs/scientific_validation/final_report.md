@@ -207,7 +207,7 @@ CellFlow 新增 `cellrank_terminal` 配置；固定 `Beta,Alpha` 后：
 
 ```powershell
 $env:PYTHONPATH = $PWD
-.venv\Scripts\python.exe -m unittest discover -s tests          # 316 tests
+.venv\Scripts\python.exe -m unittest discover -s tests          # 317 tests
 .venv\Scripts\python.exe -m benchmarks.compare_scvelo --subset data\benchmarks\pancreas_subset.h5ad --output data\benchmarks\compare_scvelo_all --modes deterministic,stochastic,dynamical
 .venv\Scripts\python.exe -m benchmarks.compare_cellrank --subset data\benchmarks\pancreas_subset.h5ad --output data\benchmarks\compare_cellrank
 .venv\Scripts\python.exe -m benchmarks.compare_cellrank --subset data\benchmarks\pancreas_subset.h5ad --output data\benchmarks\compare_cellrank_fixed --terminal Beta,Alpha
