@@ -1471,6 +1471,46 @@ def _write_html_report(path, title, body_parts, figures, captions):
 
 
 # ---------------------------------------------------------------- 报告总装
+def _learning_summary(result, facts, config, info):
+    """给个人学习者的 3 分钟阅读摘要：做了什么、没做什么、先看哪里。"""
+    levels = result.get('evidence_levels') or {}
+    level = levels.get('max_level')
+    level_text = (f'L{level} · {levels.get("max_level_name")}' if level is not None and level >= 0
+                  else '未记录')
+    mode = info.get('velocity_mode')
+    did = []
+    if info.get('has_velocity'):
+        did.append(f'RNA velocity（{mode or "模型"}）')
+    if info.get('has_fate'):
+        did.append('CellRank 命运概率')
+    if (result.get('dpt') or {}).get('reachable'):
+        did.append('DPT 拟时序')
+    if result.get('paga'):
+        did.append('PAGA 群间连接')
+    if not did:
+        did.append('描述性质控/分群（没有动力学或谱系推断）')
+    missing = []
+    if not info.get('has_velocity'):
+        missing.append('RNA velocity')
+    if not info.get('has_fate'):
+        missing.append('命运概率')
+    if not (result.get('dpt') or {}).get('reachable'):
+        missing.append('DPT 拟时序')
+    lines = [
+        '## 0.1 先读这里（个人学习版）',
+        '',
+        f'- **本次最高证据等级**：{level_text}。运行成功只到 L1；L2 需要独立的官方参考对照记录，'
+        'L3/L4 需要独立生物学或实验验证。',
+        f'- **实际执行**：{"、".join(did)}。',
+        f'- **没有执行**：{"、".join(missing) if missing else "无（上述方法均已执行）"}。'
+        '没有执行的内容不会在报告里被当成结论。',
+        '- **建议阅读顺序**：§1 数据与输入 → §4.10 四层解释 → §4.12 证据等级 → §5 参数与复现。',
+        '- **学习提醒**：箭头/命运概率是模型推断，不是实验观测；单终末状态或概率接近 1 '
+        '不代表模型准确；先看“不能推出什么”，再看“可以推断什么”。',
+    ]
+    return '\n'.join(lines)
+
+
 def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt=None):
     folder = Path(folder)
     facts = facts or {}
@@ -1491,6 +1531,7 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
         bio.append(_simulation_banner(simulated))
     bio.append('## 0. 一句话结论\n\n' + _headline(method, info, error))
     bio.append(EVIDENCE_NOTE)
+    bio.append(_learning_summary(result, facts, config, info))
 
     # 1. 数据与输入（所有数据单元先转义再进 Markdown）
     bio.append('## 1. 数据与输入\n\n' + '\n'.join([
@@ -1693,6 +1734,9 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
         if result.get('evidence'):
             bio.append('### 4.11 证据来源\n\n' + '\n'.join('- ' + _md(item)
                                                           for item in result['evidence']))
+        if result.get('evidence_levels'):
+            from .evidence import markdown as evidence_markdown
+            bio.append(evidence_markdown(result['evidence_levels']))
 
     # 5. 参数解释
     dynamics_used = 'recover_dynamics' in (info.get('steps') or [])
@@ -1838,6 +1882,11 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
                 + _fenced(prov.get('reproduce_command', '未知')) + '\n'
                 '3. 若报告状态为 failed，先看 `run.log`；修复后建议复现到新目录，不要覆盖旧结果。'
                 '\n4. `source/` 保存了本次运行时的完整源码副本，可用于对照或重放。')
+
+    if result.get('evidence_levels'):
+        from .evidence import markdown as evidence_markdown
+        tech.append('## 7.1 证据等级（技术记录）\n\n' +
+                    evidence_markdown(result['evidence_levels']).replace('### 4.12', '###'))
 
     files = []
     for name in ('config.json', 'environment.json', 'validation.json', 'format.json',

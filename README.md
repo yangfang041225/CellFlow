@@ -367,4 +367,6 @@ scVelo stochastic ≈19 s、dynamical ≈23 s，CellRank ≈22 s。真实数据�
 - 本仓库代码采用 [MIT License](LICENSE)；第三方组件许可见 THIRD_PARTY_NOTICES。
 - [API 路由](docs/api_surface.md)｜[本机可用能力](docs/local_capability.md)
 - [审计落实对照](docs/audit_response.md)｜[交付状态](docs/final_status.md)｜[验收清单](docs/acceptance.md)｜[术语参考表](docs/术语表.md)
+- 个人学习指南：[如何读报告与判断可信度](docs/personal_learning_guide.md)
+- 科学验证（Phase II）：[总报告](docs/scientific_validation/final_report.md)｜[P0 基准](docs/scientific_validation/phase2_p0.md)｜[CellRank/veloVI](docs/scientific_validation/phase2_cellrank_velovi.md)｜[证据等级](docs/scientific_validation/phase2_evidence.md)｜[Windows 可靠性](docs/scientific_validation/phase2_windows.md)｜[外部试用清单](docs/scientific_validation/external_trial_checklist.md)
 - [版本与来源核查](docs/版本与来源核查.md)｜[本机硬件与运行策略](docs/本机硬件与运行策略.md)｜[验证记录](验证记录.md)

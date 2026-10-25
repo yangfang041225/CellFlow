@@ -53,9 +53,10 @@ def start_api(port):
                '--host', '127.0.0.1', '--port', str(port), '--log-level', 'warning']
     log('启动 API: ' + subprocess.list2cmdline(command))
     flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0) if os.name == 'nt' else 0
+    env = dict(os.environ, CELLFLOW_PARENT_PID=str(os.getpid()))
     with (LOGS / 'api.log').open('a', encoding='utf-8') as handle:
         process = subprocess.Popen(command, cwd=ROOT, stdin=subprocess.DEVNULL,
-                                   stdout=handle, stderr=handle, creationflags=flags)
+                                   stdout=handle, stderr=handle, creationflags=flags, env=env)
     for _ in range(80):
         if process.poll() is not None:
             return process, False

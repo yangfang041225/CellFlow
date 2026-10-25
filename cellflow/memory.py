@@ -143,6 +143,25 @@ def estimate(path):
     }
 
 
+def disk_free(path='.') -> int:
+    """返回目标路径所在磁盘的可用字节数。"""
+    import shutil
+    try:
+        return int(shutil.disk_usage(str(path)).free)
+    except Exception:
+        return None
+
+
+def require_disk(path='.', min_gb=1.0):
+    """写结果前检查磁盘余量；不足时明确失败，避免半成品/系统盘写满。"""
+    free = disk_free(path)
+    if free is not None and free / 1024 ** 3 < float(min_gb):
+        raise OSError(
+            f'磁盘空间不足：{Path(path)} 所在磁盘仅剩 {free / 1024 ** 3:.2f} GB，'
+            f'至少需要 {min_gb:.1f} GB。请清理空间或换输出目录。')
+    return free
+
+
 def precheck(path, limit=0.9):
     """超过可用内存的 limit 倍时返回拒绝原因；否则返回 None。"""
     info = estimate(path)

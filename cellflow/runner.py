@@ -26,12 +26,14 @@ DEFAULTS = dict(method='qc', seed=42, n_top_genes=2000, n_neighbors=30, n_pcs=30
                 raw_su_confirmed=False, mt_prefix='MT-', species='', tissue='', sample_key='',
                 group_key='', root_cell='', root_reason='', grn_path='', grn_source='', grn_confirmed=False,
                 use_umap=True, leiden_resolution=1.0, cellrank_n_states=3,
+                cellrank_terminal='',
                 device='auto', velocity_model='stochastic',
                 arrow_scale=1.0, arrow_density=120)
 
 _TRUE_FALSE = ('raw_x_confirmed', 'raw_su_confirmed', 'grn_confirmed', 'use_umap')
 _TEXT = ('method', 'mt_prefix', 'species', 'tissue', 'sample_key', 'group_key', 'root_cell',
-         'root_reason', 'grn_path', 'grn_source', 'device', 'velocity_model')
+         'root_reason', 'grn_path', 'grn_source', 'device', 'velocity_model',
+         'cellrank_terminal')
 
 
 def normalize_config(config):
@@ -282,6 +284,9 @@ def run(input_path, config, folder):
 
         try:
             # ---- 准备阶段（失败也要留档）
+            from .memory import require_disk
+            require_disk(folder, min_gb=1.0)
+            log(f'磁盘余量检查通过（≥1.0 GB）；输出 {folder}')
             if c['grn_path']:
                 grn = Path(c['grn_path']).resolve()
                 shutil.copyfile(grn, folder / 'prior_grn.csv')
@@ -351,6 +356,11 @@ def run(input_path, config, folder):
                 stage = 'quality'
                 details = '；'.join(quality.get('warnings', [])[:3]) or '见 quality.json'
                 raise RuntimeError('结果结构校验失败：' + details)
+            from .evidence import assess
+            levels = assess(result, quality, provenance, folder)
+            result['evidence_levels'] = levels
+            provenance['evidence_levels'] = levels
+            dump_json(folder / 'result.json', result)
             provenance['status'] = 'completed'
             log('结果序列化与图形导出完成')
         except Exception as exc:
