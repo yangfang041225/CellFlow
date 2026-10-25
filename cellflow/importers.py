@@ -21,7 +21,7 @@ import gzip
 import re
 import shutil
 import tarfile
-import tempfile
+from . import paths
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -395,7 +395,8 @@ def from_10x_dir(folder: Path) -> ImportResult:
 
 def from_archive(path: Path) -> ImportResult:
     """zip / tar.gz：解压后递归找可读矩阵。"""
-    work = Path(tempfile.mkdtemp(prefix='cellflow_import_'))
+    # P3-02：导入解压/转换的中间文件同样落在数据根 staging，不写系统盘
+    work = paths.make_workdir('cellflow_import_', kind='import')
     try:
         from .archive import safe_extract
         safe_extract(path, work)

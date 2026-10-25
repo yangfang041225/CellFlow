@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, Response
 from pydantic import BaseModel
 
+from . import paths as storage
 from . import workspace
 from .data import inspect as inspect_data
 from .data import load as load_data
@@ -29,6 +30,22 @@ from .runner import DEFAULTS, normalize_config, validate
 
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWED_ROOTS = (ROOT / 'results' / 'inputs', ROOT / 'data' / 'public', ROOT / 'examples')
+
+
+def _allowed_roots():
+    """允许读取的本地目录：随用户数据根动态变化（P3-02）。"""
+    roots = list(ALLOWED_ROOTS)
+    try:
+        roots.append(storage.datasets_dir())
+        roots.append(storage.data_root())
+    except Exception:
+        pass
+    seen = []
+    for item in roots:
+        item = Path(item)
+        if item not in seen:
+            seen.append(item)
+    return seen
 WEB_DIST = ROOT / 'web' / 'dist'
 LOGS = ROOT / 'logs'
 
@@ -65,7 +82,7 @@ def _safe(path_text: str) -> Path:
     path = Path(path_text).expanduser().resolve()
     if not path.exists():
         raise HTTPException(404, f'路径不存在：{path}')
-    allowed = [root.resolve() for root in ALLOWED_ROOTS]
+    allowed = [root.resolve() for root in _allowed_roots()]
     if not any(path.is_relative_to(root) for root in allowed):
         raise HTTPException(403, '只允许读取项目内的数据目录')
     return path
@@ -316,7 +333,7 @@ def start_download(body: DownloadBody):
     identifier = (body.identifier or '').strip()
     if not identifier:
         raise HTTPException(400, '请填写编号、UUID 或链接')
-    task_id = downloads.submit(source, identifier, ROOT / 'data' / 'public',
+    task_id = downloads.submit(source, identifier, storage.datasets_dir(),
                                project=workspace.active_project()['id'])
     return {'ok': True, 'id': task_id}
 
@@ -354,7 +371,7 @@ def public_fetch(body: PublicBody):
     source = body.source if body.source in ('geo', 'cellxgene', 'url') else (
         'geo' if identifier.upper().startswith('GSE') else 'url')
     try:
-        files = fetch(source, identifier, ROOT / 'data' / 'public')
+        files = fetch(source, identifier, storage.datasets_dir())
     except Exception as exc:
         raise HTTPException(502, f'下载失败：{type(exc).__name__}: {exc}')
     if isinstance(files, (str, Path)):
@@ -953,6 +970,131 @@ def environment():
         queue=workspace.counts(),
     )
 
+
+
+
+# ---------------------------------------------------------------- P3-02 存储
+class DataRootBody(BaseModel):
+    path: str
+    create: bool = False
+    # 切换数据根会改变新文件的落点，必须由用户显式确认（不自动迁移旧数据）
+    confirm: bool = False
+
+
+class CleanupBody(BaseModel):
+    max_age_hours: float = 24.0
+    dry_run: bool = True
+
+
+@app.get('/api/storage')
+def storage_info():
+    """当前数据根、可用空间、标准目录、staging 占用。"""
+    root = storage.data_root()
+    layout = storage.layout(root)
+    report = storage.space_report(root if root.exists() else root.parent)
+    try:
+        scan = storage.scan_staging()
+    except Exception as exc:
+        scan = {'items': [], 'total_bytes': 0, 'count': 0, 'error': f'{type(exc).__name__}: {exc}'}
+    configured = storage.read_settings().get('data_root')
+    return {
+        'ok': True,
+        'data_root': str(root),
+        'is_default': not configured and not os.environ.get(storage.DATA_ROOT_ENV),
+        'configured': configured or '',
+        'env_override': bool(os.environ.get(storage.DATA_ROOT_ENV)),
+        'exists': root.exists(),
+        'writable': storage.validate_root(root)['writable'] if root.exists() else False,
+        'free_bytes': report.get('free_bytes'),
+        'total_bytes': report.get('total_bytes'),
+        'paths': {key: str(value) for key, value in layout.items()},
+        'staging': scan,
+        'settings_file': str(storage.settings_file()),
+    }
+
+
+@app.post('/api/storage/data-root')
+def set_storage_root(body: DataRootBody):
+    """切换数据根目录（只改以后新文件的落点，不迁移、不删除任何已有数据）。"""
+    if not body.confirm:
+        raise HTTPException(400, '切换数据目录需要显式确认：请勾选“我确认切换数据目录”。')
+    try:
+        target = storage.set_data_root(body.path, create=body.create)
+    except storage.StorageError as exc:
+        raise HTTPException(400, str(exc))
+    return {'ok': True, 'data_root': str(target),
+            'note': '已切换新文件的落点；已有数据集仍在原位置并继续可用。'}
+
+
+@app.post('/api/storage/cleanup')
+def cleanup_storage(body: CleanupBody):
+    """清理 staging 里的陈旧临时目录（默认只演练，不真删）。"""
+    if body.max_age_hours <= 0:
+        raise HTTPException(400, 'max_age_hours 必须大于 0')
+    result = storage.cleanup_staging(max_age_seconds=int(body.max_age_hours * 3600),
+                                     dry_run=body.dry_run)
+    return {'ok': True, **result}
+
+
+# ---------------------------------------------------------------- P3-01 预览
+@app.get('/api/public/geo/{gse}/manifest')
+def geo_manifest(gse: str):
+    """只读目录页与元数据，列出文件清单（不下载任何数据文件）。"""
+    from .publicdata import PublicDataError, geo_manifest as _manifest
+    try:
+        return _manifest(gse)
+    except PublicDataError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        raise HTTPException(502, f'读取 GEO 元数据失败：{type(exc).__name__}: {exc}')
+
+
+@app.get('/api/public/geo/sample/{gsm}')
+def geo_sample(gsm: str):
+    from .publicdata import PublicDataError, geo_sample_files
+    try:
+        return geo_sample_files(gsm)
+    except PublicDataError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        raise HTTPException(502, f'读取 GEO 样本失败：{type(exc).__name__}: {exc}')
+
+
+class GeoFileBody(BaseModel):
+    gse: str
+    files: List[str] = []
+
+
+@app.post('/api/public/geo/download')
+def geo_download(body: GeoFileBody):
+    """下载**用户勾选的文件**，每个文件一个后台任务。"""
+    from . import downloads
+    from .publicdata import PublicDataError, geo_fetch_selected, geo_supplementary_url
+    gse = (body.gse or '').strip().upper()
+    urls = [str(u).strip() for u in (body.files or []) if str(u).strip()]
+    if not urls:
+        raise HTTPException(400, '请先勾选要下载的文件（不会自动下载整个 Series）')
+    try:
+        allowed_dir = geo_supplementary_url(gse)
+    except PublicDataError as exc:
+        raise HTTPException(400, str(exc))
+    for url in urls:
+        if not url.startswith(allowed_dir):
+            raise HTTPException(400, f'只允许下载 {gse} 补充文件目录下的文件：'
+                                     f'{url.rsplit("/", 1)[-1]} 不在该目录内')
+    task_ids = []
+    project = workspace.active_project()['id']
+    for url in urls:
+        name = url.rstrip('/').split('/')[-1]
+
+        def _fetch(source, identifier, outdir, progress=None, _url=url, _gse=gse):
+            return geo_fetch_selected(_gse, [_url], outdir, progress=progress)[0]
+
+        task_ids.append(downloads.submit('geo', gse, storage.datasets_dir(),
+                                         fetch_func=_fetch, project=project))
+    return {'ok': True, 'ids': task_ids, 'count': len(task_ids),
+            'files': [u.rstrip('/').split('/')[-1] for u in urls],
+            'note': '每个文件一个任务；只下载勾选的文件。'}
 
 
 if WEB_DIST.exists():

@@ -17,6 +17,24 @@ from typing import Dict, List, Optional
 ROOT = Path(__file__).resolve().parents[1]
 STORE = ROOT / 'results'
 PUBLIC = ROOT / 'data' / 'public'
+
+
+def _public_dirs() -> List[Path]:
+    """数据集发现目录。
+
+    P3-02：用户可能把数据根目录换到别的盘；新下载的文件落在
+    paths.datasets_dir()。这里把两者都扫一遍，避免「下载成功但列表里看不到」。
+    旧目录 PUBLIC 始终保留，保证既有安装的登记项不受影响。
+    """
+    dirs: List[Path] = [PUBLIC]
+    try:
+        from . import paths as storage
+        candidate = storage.datasets_dir()
+        if candidate not in dirs:
+            dirs.append(candidate)
+    except Exception:
+        pass
+    return [item for item in dirs if item.is_dir()]
 EXAMPLES = ROOT / 'examples'
 PROJECT_FILE = STORE / 'workspace.json'
 DATASET_FILE = STORE / 'datasets.json'
@@ -287,9 +305,8 @@ def list_datasets(project: Optional[str] = None) -> List[Dict]:
                 plan['label'] = str(original)
                 plan['original_name'] = str(original)
             add(plan)
-    public = PUBLIC
     ignored = set(_public_ignored())
-    if public.exists():
+    for public in _public_dirs():
         for path in sorted(public.iterdir()):
             if str(path.resolve()) in ignored:
                 continue

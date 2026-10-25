@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Button, Callout, FormGroup, HTMLSelect, HTMLTable, InputGroup, ProgressBar, Spinner, Switch, Tag,
 } from '@blueprintjs/core';
-import { api, Dataset, Inspect, Meta } from '../services/api';
+import { api, Dataset, GeoFile, GeoManifest, Inspect, Meta, StorageInfo } from '../services/api';
 import { createTracker, isAbortError } from '../services/async';
 import { classifyFailure, isTransientFailure } from '../services/net';
 import {
@@ -18,6 +18,27 @@ type DownloadStatus = {
 };
 
 const TERMINAL_STATES = ['done', 'failed', 'cancelled'];
+
+const FILE_KIND_LABEL: Record<string, string> = {
+  h5ad: 'h5ad', loom: 'loom', '10x_h5': '10x h5', '10x_mtx': '10x mtx',
+  archive: '压缩包', table: '表达表', other: '其他',
+};
+
+// 剪接证据等级：只有真正解析过文件内部才能说「已验证」。
+const SPLICE_LABEL: Record<string, string> = {
+  verified_by_content: '已验证含剪接层',
+  metadata_supported: '元数据提示含剪接',
+  filename_only: '仅文件名暗示',
+  absent: '未提示',
+};
+
+function formatBytes(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '未知';
+  if (value < 1024) return value + ' B';
+  if (value < 1024 ** 2) return (value / 1024).toFixed(1) + ' KB';
+  if (value < 1024 ** 3) return (value / 1024 ** 2).toFixed(1) + ' MB';
+  return (value / 1024 ** 3).toFixed(2) + ' GB';
+}
 const ACTIVE_STATES = ['queued', 'running', 'cancelling'];
 
 export function DataView(props: {
@@ -37,6 +58,15 @@ export function DataView(props: {
   const [download, setDownload] = useState<DownloadStatus | null>(null);
   // 轮询与本地服务失联中：任务仍然保留，只是显示的不是最新进度。
   const [stalled, setStalled] = useState(false);
+  // P3-01：GEO 文件清单（查询阶段绝不下载任何文件）
+  const [manifest, setManifest] = useState<GeoManifest | null>(null);
+  const [manifestError, setManifestError] = useState('');
+  const [manifestLoading, setManifestLoading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState('');
+  // P3-02：数据与存储
+  const [storage, setStorage] = useState<StorageInfo | null>(null);
+  const [rootDraft, setRootDraft] = useState('');
+  const [rootConfirm, setRootConfirm] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const inspectTracker = useRef(createTracker()).current;
 
@@ -239,6 +269,103 @@ export function DataView(props: {
     }
   };
 
+  // ---- P3-01：先查清单，再只下载用户选中的那一个文件 ----
+  const loadManifest = async () => {
+    const gse = publicId.trim().toUpperCase();
+    if (!gse) {
+      notify('warn', '请先填写 GSE 编号');
+      return;
+    }
+    setManifestLoading(true);
+    setManifestError('');
+    setManifest(null);
+    setSelectedFile('');
+    try {
+      const data = await api.geoManifest(gse);
+      setManifest(data);
+      const importable = data.files.filter((file) => file.importable);
+      // 只有一个可导入文件时预选它（仍需要用户点“下载选中文件”）
+      if (importable.length === 1) setSelectedFile(importable[0].url);
+      if (!data.file_count) setManifestError('该 Series 没有可导入的数据文件（可能只有 SRA 原始数据）。');
+    } catch (exc) {
+      setManifestError(String(exc));
+    } finally {
+      setManifestLoading(false);
+    }
+  };
+
+  const downloadSelected = async () => {
+    if (!manifest || !selectedFile) {
+      notify('warn', '请先查询文件清单并选择一个文件');
+      return;
+    }
+    stopPolling();
+    setStalled(false);
+    const gse = manifest.accession;
+    try {
+      const started = await api.geoDownload(gse, [selectedFile]);
+      const id = started.ids[0];
+      setDownload({
+        id, state: 'queued', done: 0, total: 0,
+        message:
+          '已提交：' + started.files[0], path: '', error: '',
+      });
+      rememberDownload({ id, startedAt: Date.now(), source: 'geo', identifier: gse });
+      notify('ok', '已开始下载 1 个文件：' + started.files[0]);
+      pollDownload(id);
+    } catch (exc) {
+      if (isTransientFailure(exc)) {
+        const adopted = await reconcileDownload('geo', gse);
+        if (adopted) {
+          setDownload(adopted);
+          rememberDownload({ id: adopted.id, startedAt: Date.now(), source: 'geo', identifier: gse });
+          notify('warn', '请求被中断，但下载任务已创建；继续显示进度。');
+          pollDownload(adopted.id);
+          return;
+        }
+      }
+      notify('bad', '无法开始下载：' + String(exc));
+    }
+  };
+
+  // ---- P3-02：数据根目录（只影响以后新文件的落点，不迁移已有数据）----
+  useEffect(() => {
+    api.storage().then(setStorage).catch(() => setStorage(null));
+  }, []);
+
+  const applyDataRoot = async () => {
+    const target = rootDraft.trim();
+    if (!target) {
+      notify('warn', '请填写数据目录，例如 D:\\CytelleData');
+      return;
+    }
+    if (!rootConfirm) {
+      notify('warn', '切换数据目录需要先勾选确认；已有数据不会被移动。');
+      return;
+    }
+    try {
+      const result = await api.setDataRoot(target, true);
+      notify('ok', '数据目录已切换：' + result.data_root);
+      setStorage(await api.storage());
+      setRootDraft('');
+      setRootConfirm(false);
+    } catch (exc) {
+      notify('bad', '切换失败：' + String(exc));
+    }
+  };
+
+  const cleanStaging = async (dryRun: boolean) => {
+    try {
+      const result = await api.cleanupStorage(24, dryRun);
+      notify('ok', (dryRun ? '可清理 ' : '已清理 ') +
+        (result.removed.length) + ' 个临时任务目录，约 ' +
+        (result.removed_bytes / 1024 / 1024).toFixed(1) + ' MB');
+      setStorage(await api.storage());
+    } catch (exc) {
+      notify('bad', '清理失败：' + String(exc));
+    }
+  };
+
   // 渲染时再做一次数据版本核对：切换数据集的同一帧也不会显示上一份数据的检查结果。
   const currentInspect = inspect && dataset && inspect.path === dataset.path ? inspect : null;
   const format = currentInspect?.format || {};
@@ -295,10 +422,70 @@ export function DataView(props: {
                 <InputGroup value={publicId} onChange={(event) => setPublicId(event.currentTarget.value)}
                             placeholder={publicSource === 'geo' ? 'GSE84133' : 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'} />
               </FormGroup>
-              <Button fill onClick={usePublic}
-                      disabled={ACTIVE_STATES.includes(download?.state || '')}>
-                下载
-              </Button>
+              {publicSource === 'geo' ? (
+                <>
+                  <Button fill icon="search" loading={manifestLoading}
+                          disabled={!publicId.trim()}
+                          onClick={() => { void loadManifest(); }}>
+                    查询文件清单（不下载）
+                  </Button>
+                  {manifestError ? (
+                    <Callout compact intent="danger" style={{ marginTop: 6 }}>{manifestError}</Callout>
+                  ) : null}
+                  {manifest ? (
+                    <div style={{ marginTop: 8 }}>
+                      <div className="cf-sub" style={{ marginBottom: 4 }}>
+                        <b>{manifest.info.title || manifest.accession}</b>
+                        {' · '}{manifest.accession}
+                        {manifest.info.taxon ? ' · ' + manifest.info.taxon : ''}
+                        {manifest.info.n_samples ? ' · ' + manifest.info.n_samples + ' 个样本' : ''}
+                        {' · '}{manifest.file_count} 个可尝试导入的文件
+                      </div>
+                      <div className="cf-sub" style={{ marginBottom: 6 }}>
+                        只下载勾选的文件；不会自动下载整个 Series。
+                        大小来自 NCBI 目录页（四舍五入）。
+                      </div>
+                      <HTMLTable compact bordered style={{ marginBottom: 6 }}>
+                        <thead>
+                          <tr><th style={{ width: 28 }}></th><th>文件</th><th style={{ width: 78 }}>大小</th>
+                            <th style={{ width: 70 }}>类型</th><th style={{ width: 110 }}>剪接证据</th></tr>
+                        </thead>
+                        <tbody>
+                          {manifest.files.map((file: GeoFile) => (
+                            <tr key={file.url} style={{ opacity: file.importable ? 1 : 0.5 }}>
+                              <td>
+                                <input type="radio" name="geo-file"
+                                       disabled={!file.importable}
+                                       checked={selectedFile === file.url}
+                                       onChange={() => setSelectedFile(file.url)} />
+                              </td>
+                              <td title={file.name}>{file.name}</td>
+                              <td>{file.size_text || '未知'}</td>
+                              <td>{FILE_KIND_LABEL[file.kind] || file.kind}</td>
+                              <td>{SPLICE_LABEL[file.splice_evidence] || file.splice_evidence}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </HTMLTable>
+                      <div className="cf-sub" style={{ marginBottom: 6 }}>
+                        已选 {selectedFile ? '1' : '0'} 个 ·{' '}
+                        {formatBytes(manifest.files.find((f) => f.url === selectedFile)?.size_bytes)}
+                        {storage ? ' · 数据目录可用 ' + formatBytes(storage.free_bytes) : ''}
+                      </div>
+                      <Button fill intent="primary" icon="download"
+                              disabled={!selectedFile || ACTIVE_STATES.includes(download?.state || '')}
+                              onClick={() => { void downloadSelected(); }}>
+                        下载选中文件
+                      </Button>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <Button fill onClick={usePublic}
+                        disabled={ACTIVE_STATES.includes(download?.state || '')}>
+                  下载
+                </Button>
+              )}
               {download ? (
                 <div style={{ marginTop: 8 }}>
                   <ProgressBar
@@ -338,6 +525,40 @@ export function DataView(props: {
               ) : null}
             </>
           ) : null}
+
+          <details style={{ marginTop: 14 }}>
+            <summary className="cf-sec" style={{ cursor: 'pointer' }}>
+              数据与存储 <span className="h">
+                {storage ? storage.data_root : '读取中…'}
+              </span>
+            </summary>
+            {storage ? (
+              <div style={{ marginTop: 6 }}>
+                <div className="cf-sub" style={{ marginBottom: 4 }}>
+                  可用 {formatBytes(storage.free_bytes)} / 共 {formatBytes(storage.total_bytes)}
+                  {' · '}临时文件占用 {formatBytes(storage.staging.total_bytes)}
+                  {'（'}{storage.staging.count} 个任务目录）
+                  {storage.is_default ? ' · 使用项目内默认目录' : ''}
+                </div>
+                <div className="cf-sub" style={{ marginBottom: 4 }}>
+                  大文件（下载、解压、格式转换）都写到这个目录，不会占用系统盘临时目录。
+                </div>
+                <InputGroup value={rootDraft} fill
+                            placeholder="例如 D:\CytelleData"
+                            onChange={(event) => setRootDraft(event.currentTarget.value)} />
+                <label className="cf-sub" style={{ display: 'block', margin: '4px 0' }}>
+                  <input type="checkbox" checked={rootConfirm}
+                         onChange={(event) => setRootConfirm(event.currentTarget.checked)} />
+                  {' '}我确认切换数据目录（只影响以后新文件；已有数据不会被移动）
+                </label>
+                <Button small onClick={() => { void applyDataRoot(); }}>切换数据目录</Button>
+                {' '}
+                <Button small minimal onClick={() => { void cleanStaging(true); }}>检查可清理临时文件</Button>
+                {' '}
+                <Button small minimal onClick={() => { void cleanStaging(false); }}>清理超过 24 小时的临时文件</Button>
+              </div>
+            ) : null}
+          </details>
 
           <div className="cf-sec">数据声明 <span className="h">按数据内容版本保存</span></div>
           <Callout compact style={{ fontSize: 11.8 }}>
