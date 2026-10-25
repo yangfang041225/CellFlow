@@ -53,6 +53,27 @@ class Pagination(unittest.TestCase):
             self.assertLessEqual(len(body['log']), 20000)
             self.assertIn('TAIL-MARKER', body['log'])
 
+    def test_run_detail_compacts_heavy_arrays(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'result.json').write_text(json.dumps({
+                'metrics': {'n_groups': 3},
+                'embedding': [[0.0, 1.0], [1.0, 2.0]],
+                'velocity': [[0.1, 0.2]],
+                'gene_table': [{'gene': 'g1'}],
+            }), encoding='utf-8')
+            fake = {'id': 'fake', 'output': str(root), 'method': 'qc', 'state': 'completed'}
+            with mock.patch.object(api, '_job', return_value=fake):
+                compact = self.client.get('/api/runs/fake').json()
+                full = self.client.get('/api/runs/fake?compact=0').json()
+        self.assertEqual(compact['result']['metrics']['n_groups'], 3)
+        self.assertNotIn('embedding', compact['result'])
+        self.assertIn('_omitted', compact['result'])
+        self.assertIn('embedding', full['result'])
+
 
 if __name__ == '__main__':
     unittest.main()

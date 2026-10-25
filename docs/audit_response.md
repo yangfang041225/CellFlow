@@ -32,13 +32,13 @@
 | F24 内存/磁盘 | 部分 | 上传流式限流；预览统计修正；内存预检分段 | HDF5 多层/压缩展开的预算仍为估算 |
 | F25 完整性标识 | 已修 | 大文件仅首尾+大小 → 标 `sha256-partial-headtail-size`；完整哈希保留给内容版本 | UI 显示指纹类型；`test_hash_kind_is_explicit` |
 | F26 预览统计 | 已修 | sparse 用 nnz/(n×g)、整体均值；dense 用 `issparse` 判定 | 25% 非零/0.5 均值测试 |
-| F27 下载 | 部分 | 内容版本化文件名、原子发布、失败不覆盖、状态持久化、项目归属 | 多物种自动筛选清单只保留最大组，尚未完整记录 |
+| F27 下载 | 已修 | 内容版本化文件名、原子发布、失败不覆盖、状态持久化、项目归属；多物种筛选写入 sidecar 并记录到任务 | `test_downloads_persistence`（新增筛选记录用例） |
 | F28 数据移除 | 已修 | 项目作用域注销 + 公共文件忽略列表，重启/刷新不复活 | `test_removed_public_file_does_not_resurrect` |
 | F29 参数一致性 | 已修 | 前端能力表驱动；无效键不提交；补 max_iter/mt_prefix/tissue/cellrank_n_states/grn_confirmed；配置 JSON 导入导出 | `tsc/build`；逻辑冒烟 52 项 |
 | F30 数据集识别 | 已修 | 保留原始名/来源；复合扩展 `.csv.gz/.tar.gz`；内部 id 仅详情 | `test_dataset_identity` 3 项 |
 | F31 异步状态 | 已修 | 请求 token/AbortController、草稿版本、日志持续刷新、下载记录恢复 | 前端逻辑冒烟；未做真实延迟注入 |
 | F32 测试流程 | 部分 | 新增夹具生成任务、重复定义/文档链接检查、CI 前后端 | 无浏览器 E2E/覆盖率基线；CI 中 veloVI 等环境项跳过 |
-| F33 历史规模 | 部分 | runs 服务端 limit/offset/total；单行查询；日志尾读；counts 聚合 | 结果轮询仍带完整 result；未做前端虚拟滚动 |
+| F33 历史规模 | 已修 | runs 服务端 limit/offset/total；单行查询；日志尾读；counts 聚合；详情默认压缩大数组（`?compact=0` 取完整） | `test_api_pagination`（分页/尾读/压缩用例）；未做前端虚拟滚动 |
 | F34 环境发布 | 部分 | `install.py --check` 真实 import/版本；隔离环境自身解释器探测；manifest | registry 运行时仍未消费 manifest；无签名安装器 |
 | F35 窗口/DPI | 部分 | 按 availableGeometry 收敛；980 宽单栏/工具栏收纳；实测 1180/980 无横向溢出 | 125/150/200% 原生多屏矩阵未系统实测 |
 | F36 多入口文档 | 已修 | README 只推荐 Qt；历史入口边界表；页面名/端口修正 | 链接检查通过 |
@@ -52,8 +52,6 @@
 - RegVelo 真实训练（无 `.venv-regvelo`）、GPU/远程执行。
 - 浏览器端 E2E、系统 DPI 矩阵、干净机器冷安装。
 - F37 大输入/模型检查点的完整复现包。
-- F27 多物种筛选的完整清单记录。
-- F33 结果轮询载荷进一步瘦身。
 
 ## 复用方式
 

@@ -20,6 +20,7 @@ from __future__ import annotations
 import gzip
 import html
 import io
+import json
 import re
 import shutil
 import tarfile
@@ -630,6 +631,16 @@ def geo_fetch(gse: str, outdir: Path, progress: Optional[Callable[[str], None]] 
         if dropped:
             say('该数据集包含多个物种，只保留 ' + keep + '；已忽略：' +
                 '，'.join(f'{k}({v} 个样本)' for k, v in dropped.items()))
+            try:
+                meta_path = Path(out).with_name(Path(out).name + '.meta.json')
+                meta_path.write_text(json.dumps({
+                    'species_kept': keep,
+                    'species_dropped': {key: int(value) for key, value in dropped.items()},
+                    'samples_total': int(len(collected)),
+                    'samples_kept': int(len(kept)),
+                }, ensure_ascii=False, indent=2), encoding='utf-8')
+            except Exception:
+                pass
 
         say(f'共 {len(adatas)} 个样本，开始合并')
         if len(adatas) == 1:

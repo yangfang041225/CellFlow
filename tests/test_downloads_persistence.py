@@ -96,6 +96,19 @@ class DownloadsPersistence(unittest.TestCase):
         self.assertIn(mine['id'], ids)
         self.assertNotIn(other['id'], ids)
 
+    def test_species_filter_sidecar_is_recorded(self):
+        def fetch(source, identifier, staging, progress=None):
+            path = Path(staging) / 'geo.h5ad'
+            path.write_bytes(b'A' * 10)
+            (Path(staging) / 'geo.h5ad.meta.json').write_text(
+                json.dumps({'species_kept': 'human', 'species_dropped': {'mouse': 2}}),
+                encoding='utf-8')
+            return path
+
+        task = self._wait(downloads.submit('url', 'x', self.outdir, fetch, project='p1'))
+        self.assertEqual(task['species_filtered']['species_kept'], 'human')
+        self.assertEqual(task['species_filtered']['species_dropped']['mouse'], 2)
+
 
 if __name__ == '__main__':
     unittest.main()

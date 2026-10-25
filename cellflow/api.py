@@ -612,7 +612,7 @@ def _read(folder: Path, name: str):
 
 
 @app.get('/api/runs/{job_id}')
-def run_detail(job_id: str):
+def run_detail(job_id: str, compact: int = 1):
     job = _job(job_id)
     folder = Path(job['output'])
     figures = []
@@ -623,13 +623,27 @@ def run_detail(job_id: str):
                 figures.append(name)
     quality = _read(folder, 'quality.json')
     provenance = _read(folder, 'provenance.json') or {}
+    result = _read(folder, 'result.json')
+    omitted = []
+    if compact and isinstance(result, dict):
+        result = dict(result)
+        for key in ('embedding', 'velocity', 'velocity_uncertainty', 'fate_probabilities',
+                    'paga_connectivities', 'paga_groups', 'gene_trends'):
+            if key in result:
+                value = result[key]
+                size = len(value) if hasattr(value, '__len__') else 1
+                result.pop(key, None)
+                omitted.append({'key': key, 'items': int(size)})
+        if omitted:
+            result['_omitted'] = {'reason': '轮询默认压缩大数组；?compact=0 取完整结果',
+                                  'fields': omitted}
     return dict(
         id=job_id, name=job.get('name') or job_id, method=job.get('method'),
         method_label=INDEX[job['method']].name if job.get('method') in INDEX else job.get('method'),
         state=job.get('state'), error=job.get('error') or '',
         submitted=job.get('submitted'), updated=job.get('updated'),
         output=str(folder), input=str(job.get('input') or ''),
-        config=_read(folder, 'config.json'), result=_read(folder, 'result.json'),
+        config=_read(folder, 'config.json'), result=result,
         qc=_read(folder, 'qc.json'), provenance=provenance,
         stage=provenance.get('last_stage') or '',
         elapsed_seconds=provenance.get('elapsed_seconds'),

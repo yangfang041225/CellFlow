@@ -223,7 +223,16 @@ def _run(task_id, outdir, fetch_func=None):
                             progress=message_progress))
         if not result.is_file():
             raise RuntimeError('下载接口没有产出文件')
+        species_filtered = None
+        meta_path = result.with_name(result.name + '.meta.json')
+        if meta_path.is_file():
+            try:
+                species_filtered = json.loads(meta_path.read_text(encoding='utf-8'))
+            except Exception:
+                species_filtered = None
         final = _publish(outdir, result)
+        if species_filtered:
+            _update(task_id, species_filtered=species_filtered)
         for leftover in staging.rglob('*'):
             if leftover.is_file():
                 leftover.unlink(missing_ok=True)
