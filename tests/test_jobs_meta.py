@@ -155,6 +155,29 @@ class JobsMeta(unittest.TestCase):
         if 'output' in job and stream.is_file():
             self.assertIn('figures/stream.png', names)
 
+    def test_zip_declares_package_kind_and_hashes(self):
+        import io
+        import zipfile
+        runs = self.client.get('/api/runs').json()['runs']
+        completed = [item for item in runs if item['state'] == 'completed']
+        if not completed:
+            self.skipTest('没有已完成任务')
+        job = completed[0]
+        report = self.client.get(f"/api/runs/{job['id']}/zip")
+        self.assertEqual(report.status_code, 200)
+        archive = zipfile.ZipFile(io.BytesIO(report.content))
+        names = archive.namelist()
+        manifest = json.loads(archive.read('manifest.json'))
+        self.assertEqual(manifest['package_kind'], 'report-pack')
+        self.assertIn('file_sha256', manifest)
+        self.assertIn('REPRODUCE.md', names)
+        self.assertIn('config.json', names)
+        self.assertEqual(len(manifest['file_sha256']['config.json']), 64)
+        full = self.client.get(f"/api/runs/{job['id']}/zip?full=1")
+        self.assertEqual(full.status_code, 200)
+        full_manifest = json.loads(zipfile.ZipFile(io.BytesIO(full.content)).read('manifest.json'))
+        self.assertEqual(full_manifest['package_kind'], 'reproducibility-pack')
+
     def test_quality_report_flags_shape_mismatch(self):
         from cellflow.data import load
         from cellflow.runner import _quality_report

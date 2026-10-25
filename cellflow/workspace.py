@@ -374,12 +374,10 @@ def latest_run() -> Optional[Dict]:
     return items[0] if items else None
 
 
-def counts() -> Dict[str, int]:
-    items = runs()
-    out = {'queued': 0, 'running': 0, 'completed': 0, 'failed': 0}
-    for job in items:
-        out[job.get('state', 'failed')] = out.get(job.get('state', 'failed'), 0) + 1
-    return out
+def counts(project: Optional[str] = None) -> Dict[str, int]:
+    """任务计数：SQL 聚合；project 给定时只统计该项目。"""
+    from .queue import counts as queue_counts
+    return queue_counts(project=project)
 
 def archive_project(project_id: str, archived: bool = True) -> Optional[Dict]:
     """归档/恢复项目；归档当前项目时自动切到第一个未归档项目。"""

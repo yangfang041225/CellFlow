@@ -118,6 +118,18 @@ class WindowsGuiLauncher(unittest.TestCase):
             self.assertNotEqual(sock.connect_ex(('127.0.0.1', port)), 0, 'API runtime child leaked')
 
 class InstallCheck(unittest.TestCase):
+    def test_window_size_fits_small_screen(self):
+        from cellflow.desktop_qt import initial_window_size
+        width, height, min_width, min_height = initial_window_size(853, 480)
+        self.assertLessEqual(width, 853 - 40)
+        self.assertLessEqual(height, 480 - 40)
+        self.assertLessEqual(min_width, width)
+        self.assertLessEqual(min_height, height)
+
+    def test_window_default_on_large_screen(self):
+        from cellflow.desktop_qt import initial_window_size
+        self.assertEqual(initial_window_size(1920, 1080)[:2], (1180, 780))
+
     def test_install_check_mode_reports_ready(self):
         proc = subprocess.run([sys.executable, 'install.py', '--check'], cwd=str(ROOT),
                               capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=180,

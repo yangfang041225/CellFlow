@@ -149,7 +149,7 @@ class ProjectBody(BaseModel):
 @app.get('/api/health')
 def health():
     from .device import resolve as resolve_device
-    return {'ok': True, 'root': str(ROOT), 'queue': workspace.counts(),
+    return {'ok': True, 'root': str(ROOT), 'queue': workspace.counts(workspace.active_project()['id']),
             'device': resolve_device('auto').device,
             'projects': workspace.active_project()['id']}
 
@@ -158,7 +158,7 @@ def health():
 def meta():
     project = workspace.project()
     datasets = _dataset_rows()
-    counts = workspace.counts()
+    counts = workspace.counts(project['id'])
     return dict(project=project, datasets=datasets, counts=counts,
                 projects=workspace.projects()['items'],
                 active_project=workspace.active_project(),
@@ -316,7 +316,8 @@ def start_download(body: DownloadBody):
     identifier = (body.identifier or '').strip()
     if not identifier:
         raise HTTPException(400, '请填写编号、UUID 或链接')
-    task_id = downloads.submit(source, identifier, ROOT / 'data' / 'public')
+    task_id = downloads.submit(source, identifier, ROOT / 'data' / 'public',
+                               project=workspace.active_project()['id'])
     return {'ok': True, 'id': task_id}
 
 
@@ -332,7 +333,7 @@ def download_status(task_id: str):
 @app.get('/api/downloads')
 def download_list():
     from . import downloads
-    return {'downloads': downloads.list_tasks()}
+    return {'downloads': downloads.list_tasks(project=workspace.active_project()['id'])}
 
 
 @app.post('/api/downloads/{task_id}/cancel')
@@ -537,14 +538,17 @@ def create_run(body: RunBody):
 
 
 @app.get('/api/runs')
-def runs(state: str = '', method: str = '', dataset: str = '', q: str = '', limit: int = 0,
-         project: str = ''):
-    from .queue import list_jobs
+def runs(state: str = '', method: str = '', dataset: str = '', q: str = '', limit: int = 100,
+         offset: int = 0, project: str = ''):
+    from .queue import count_jobs, list_jobs
     items = []
     target = project or workspace.active_project()['id']
-    rows = list_jobs(state=state or None, method=method or None,
-                     dataset=dataset or None, query=q or None,
-                     limit=limit or None, project=target or 'all')
+    limit = max(1, min(int(limit or 100), 200))
+    offset = max(0, int(offset or 0))
+    filters = dict(state=state or None, method=method or None,
+                   dataset=dataset or None, query=q or None, project=target or 'all')
+    total = count_jobs(**filters)
+    rows = list_jobs(**filters, limit=limit, offset=offset)
     for job in rows:
         items.append(dict(id=job['id'], name=job.get('name') or job['id'],
                           method=job.get('method'),
@@ -554,7 +558,8 @@ def runs(state: str = '', method: str = '', dataset: str = '', q: str = '', limi
                           updated=job.get('updated'), output=job.get('output'),
                           input=job.get('input'), dataset=job.get('dataset') or '',
                           error=job.get('error') or ''))
-    return {'runs': items}
+    return {'runs': items, 'total': total, 'limit': limit,
+            'offset': offset, 'has_more': offset + len(items) < total}
 
 
 class RenameBody(BaseModel):
@@ -589,10 +594,11 @@ def cancel_run(job_id: str):
 
 
 def _job(job_id: str) -> dict:
-    for job in workspace.runs():
-        if job['id'] == job_id:
-            return job
-    raise HTTPException(404, '任务不存在')
+    from .queue import get_job
+    job = get_job(job_id)
+    if job is None:
+        raise HTTPException(404, '任务不存在')
+    return job
 
 
 def _read(folder: Path, name: str):
@@ -710,19 +716,11 @@ def compare_runs(job_id: str, other_id: str):
     figures_a = figure_names(first_folder)
     figures_b = figure_names(second_folder)
 
-    same_cells = (bool(first_result.get('cells_hash')) and
-                  first_result.get('cells_hash') == second_result.get('cells_hash'))
-    embedding_keys = ('n_neighbors', 'n_pcs', 'seed')
-    same_embedding = all(left.get(key) == right.get(key) for key in embedding_keys)
-    can_compare = bool(same_cells and same_embedding and
-                       'embedding.svg' in figures_a and 'embedding.svg' in figures_b)
-    reasons = []
-    if not same_cells:
-        reasons.append('两次运行的细胞集合不同（或缺少哈希），嵌入图不能直接并排比较')
-    if not same_embedding:
-        reasons.append('邻域/PCA/随机种子不同，嵌入坐标不可直接比较')
-    if not can_compare and not reasons:
-        reasons.append('至少一次运行没有 embedding.svg')
+    from .compare import figure_contract
+    contract = figure_contract(first_result, second_result, left, right, figures_a, figures_b,
+                              identical=(job_id == other_id))
+    can_compare = bool(contract['can_compare_figures'])
+    reasons = list(contract['reasons'])
 
     return {
         'a': job_id,
@@ -733,6 +731,13 @@ def compare_runs(job_id: str, other_id: str):
         'figures': {'a': figures_a, 'b': figures_b},
         'can_compare_figures': can_compare,
         'compare_reason': '；'.join(reasons),
+        'reasons': reasons,
+        'same_coordinates': contract['same_coordinates'],
+        'same_input_identity': contract['same_input_identity'],
+        'metrics_comparable': contract['metrics_comparable'],
+        'metrics_note': contract['metrics_note'],
+        'side_by_side': contract['side_by_side'],
+        'input_identity': contract['input_identity'],
     }
 
 
@@ -791,31 +796,87 @@ def run_report(job_id: str, kind: str):
                              media_type='text/markdown; charset=utf-8')
 
 
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, 'rb') as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 @app.get('/api/runs/{job_id}/zip')
-def run_zip(job_id: str):
+def run_zip(job_id: str, full: int = 0):
+    """导出 ZIP：默认报告包；full=1 时尽量附带可复现资产（大输入只列哈希）。"""
     job = _job(job_id)
     folder = Path(job['output'])
     for kind in ('a', 'b'):
         _ensure_report_pdf(folder, kind)
+    assets = []
+    external = []
+    hashes = {}
+    for name in ('config.json', 'environment.json', 'quality.json', 'provenance.json',
+                 'velocity.npz', 'analysis.h5ad', 'result.json'):
+        path = folder / name
+        if path.is_file():
+            hashes[name] = _file_sha256(path)
+            assets.append((path, name))
+    input_path = Path(job['input']) if job.get('input') else None
+    input_hash = None
+    if input_path and input_path.is_file():
+        input_hash = _file_sha256(input_path)
+        size = input_path.stat().st_size
+        hashes['input/' + input_path.name] = input_hash
+        if full and size <= 100 * 1024 * 1024:
+            assets.append((input_path, 'input/' + input_path.name))
+        else:
+            external.append({'name': input_path.name, 'sha256': input_hash, 'bytes': size,
+                             'note': '输入未打包（体积/隐私）；按哈希在本地放置后可复跑'})
+    source_dir = folder / 'source'
+    if full and source_dir.is_dir():
+        for path in sorted(source_dir.rglob('*')):
+            if path.is_file() and path.stat().st_size < 5 * 1024 * 1024:
+                rel = str(path.relative_to(source_dir)).replace(chr(92), '/')
+                assets.append((path, 'source/' + rel))
     manifest = {
         'task_id': job_id,
         'name': job.get('name') or job_id,
         'method': job.get('method'),
         'state': job.get('state'),
         'dataset': job.get('dataset') or '',
+        'package_kind': 'reproducibility-pack' if full else 'report-pack',
+        'reproduce_scope': ('含输入/源码/速度与嵌入，可离线重跑' if full else
+                            '报告与验收资产；不含输入/源码，复跑需按 external 的哈希放置输入'),
         'config': _read(folder, 'config.json') or {},
         'environment': _read(folder, 'environment.json') or {},
         'quality': _read(folder, 'quality.json') or {},
         'files': sorted(path.name for path in folder.iterdir() if path.is_file()),
-        'notes': '本包由 CellFlow 导出；结果文件保留原始运行状态，PDF 由报告 HTML 本地转换。',
+        'file_sha256': hashes,
+        'external': external,
+        'notes': '本包由 CellFlow 导出；PDF 由报告 HTML 本地转换。报告包不是完整复现包。',
     }
+    reproduce = ['# 复跑说明', '',
+                 f'- 任务：`{job_id}`（{job.get("method")}）',
+                 f'- 包类型：{manifest["package_kind"]}',
+                 f'- 输入：`{input_path.name if input_path else "未记录"}`',
+                 f'- 输入哈希：`{input_hash or "未记录"}`',
+                 '', '## 本地复跑（在 CellFlow 项目根）', '```powershell',
+                 '.venv/Scripts/python.exe -m cellflow.cli run `',
+                 '  --input <按哈希放置的输入> `',
+                 '  --config config.json --output <新目录>', '```', '',
+                 '## 注意', '- 输入文件因体积/隐私默认不打包；用 manifest 的 SHA-256 校验后再复跑。',
+                 '- 报告包只含报告与图形，不等同于完整复现包。']
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
         zf.writestr('manifest.json', json.dumps(manifest, ensure_ascii=False, indent=2))
-        # 资源清单由 reports.bundle_entries 统一枚举：报告文件 + 实际被引用的
-        # figures/*.png、figures/*.svg（含 stream.png），保留相对目录，保证离线可打开。
+        zf.writestr('REPRODUCE.md', chr(10).join(reproduce) + chr(10))
+        bundled = set()
         for path, arcname in bundle_entries(folder):
             zf.write(path, arcname)
+            bundled.add(arcname)
+        for path, arcname in assets:
+            if arcname not in bundled:
+                zf.write(path, arcname)
+                bundled.add(arcname)
     data = buf.getvalue()
     return Response(content=data, media_type='application/zip',
                     headers={'Content-Disposition': f'attachment; filename="{job_id}_reports.zip"'})
@@ -825,8 +886,15 @@ def run_zip(job_id: str):
 def run_log(job_id: str):
     job = _job(job_id)
     path = Path(job['output']) / 'run.log'
-    text = path.read_text(encoding='utf-8', errors='replace') if path.exists() else ''
-    return {'log': text[-20000:]}
+    if not path.exists():
+        return {'log': '', 'truncated': False}
+    limit = 128 * 1024
+    size = path.stat().st_size
+    with open(path, 'rb') as handle:
+        if size > limit:
+            handle.seek(size - limit)
+        data = handle.read()
+    return {'log': data.decode('utf-8', errors='replace')[-20000:], 'truncated': size > limit}
 
 
 @app.get('/api/env')

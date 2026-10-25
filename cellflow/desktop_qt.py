@@ -6,6 +6,16 @@ import os
 import sys
 
 
+def initial_window_size(available_width, available_height, desired=(1180, 780),
+                       minimum=(820, 560), margin=(80, 100)):
+    """按屏幕可用区域收敛窗口尺寸；返回 (width, height, min_width, min_height)。"""
+    avail_w = max(320, int(available_width) - margin[0])
+    avail_h = max(240, int(available_height) - margin[1])
+    width = min(desired[0], avail_w)
+    height = min(desired[1], avail_h)
+    return width, height, min(width, 980), min(height, 620)
+
+
 def run_window(root, logs, url, instance, log):
     # Local to this application; no changes to Windows proxy or GPU settings.
     _flags = '--no-proxy-server --disable-gpu'
@@ -51,8 +61,19 @@ def run_window(root, logs, url, instance, log):
 
     window = Window()
     window.setWindowTitle('CellFlow')
-    window.resize(1180, 780)
-    window.setMinimumSize(980, 620)
+    # 按当前屏幕可用区域收敛初始窗口，避免小屏/任务栏遮挡；最小尺寸不高于可用区域
+    screen = QApplication.primaryScreen()
+    available = screen.availableGeometry() if screen is not None else None
+    width, height = 1180, 780
+    min_width, min_height = 980, 620
+    if available is not None:
+        width, height, min_width, min_height = initial_window_size(
+            available.width(), available.height())
+    window.resize(width, height)
+    window.setMinimumSize(min_width, min_height)
+    if available is not None:
+        window.move(available.x() + max(0, (available.width() - width) // 2),
+                    available.y() + max(0, (available.height() - height) // 2))
     view = QWebEngineView(window)
     profile = QWebEngineProfile('CellFlow', window)
     profile.setPersistentStoragePath(str(logs / 'qt-profile'))

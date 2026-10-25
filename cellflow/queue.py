@@ -438,9 +438,7 @@ def submit(path, config, store=STORE, dataset=None, name=None, project=None):
 
 
 # ------------------------------------------------------------------ 查询/元数据
-def list_jobs(store=STORE, state=None, method=None, dataset=None, query=None, limit=None,
-              project=None):
-    """服务端筛选：状态 / 方法 / 数据集 / 名称或 ID 关键词。"""
+def _job_filters(state=None, method=None, dataset=None, query=None, project=None):
     clauses, values = [], []
     if state:
         clauses.append('state = ?')
@@ -458,12 +456,44 @@ def list_jobs(store=STORE, state=None, method=None, dataset=None, query=None, li
         clauses.append('(id LIKE ? OR name LIKE ? OR method LIKE ?)')
         like = f'%{query}%'
         values.extend([like, like, like])
-    where = ('WHERE ' + ' AND '.join(clauses)) if clauses else ''
+    return (('WHERE ' + ' AND '.join(clauses)) if clauses else ''), values
+
+
+def list_jobs(store=STORE, state=None, method=None, dataset=None, query=None, limit=None,
+              project=None, offset=None):
+    """服务端筛选 + 分页：状态 / 方法 / 数据集 / 名称或 ID 关键词。"""
+    where, values = _job_filters(state, method, dataset, query, project)
     sql = f'SELECT * FROM jobs {where} ORDER BY submitted DESC'
     if limit:
         sql += f' LIMIT {int(limit)}'
+        if offset:
+            sql += f' OFFSET {int(offset)}'
     with closing(connect(store)) as db:
         return [dict(r) for r in db.execute(sql, values)]
+
+
+def count_jobs(store=STORE, state=None, method=None, dataset=None, query=None, project=None):
+    where, values = _job_filters(state, method, dataset, query, project)
+    with closing(connect(store)) as db:
+        row = db.execute(f'SELECT COUNT(*) AS n FROM jobs {where}', values).fetchone()
+        return int(row['n']) if row else 0
+
+
+def counts(store=STORE, project=None):
+    """按项目聚合任务状态；不遍历全部行。"""
+    clause, values = '', []
+    if project and project != 'all':
+        clause = "WHERE COALESCE(project_id, 'default') = ?"
+        values = [project]
+    out = {'queued': 0, 'running': 0, 'completed': 0, 'failed': 0, 'cancelled': 0}
+    with closing(connect(store)) as db:
+        for row in db.execute(f'SELECT state, COUNT(*) AS n FROM jobs {clause} GROUP BY state', values):
+            out[row['state']] = int(row['n'])
+    return out
+
+
+def get_job(job_id, store=STORE):
+    return _job_row(store, job_id)
 
 
 def _job_row(store, job_id):
