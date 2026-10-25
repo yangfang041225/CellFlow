@@ -435,6 +435,55 @@ def _velocity_payload(a, mode, info):
     return payload
 
 
+def _absorption_direct(kernel, terms, limit=1200):
+    """直接解吸收概率，裁剪极小负值并归一化；仅在 GPCCA 求解器失败时使用。"""
+    import pandas as pd
+    import scipy.sparse as sp
+
+    labels = pd.Series(terms).to_numpy()
+    term_mask = ~pd.isna(labels)
+    term_idx = np.where(term_mask)[0]
+    trans = np.where(~term_mask)[0]
+    if len(trans) > limit:
+        raise ValueError(f'直接吸收求解仅支持 ≤{limit} 个瞬态细胞；当前 {len(trans)}')
+    matrix = kernel.transition_matrix
+    if sp.issparse(matrix):
+        matrix = matrix.tocsr()
+    else:
+        matrix = sp.csr_matrix(np.asarray(matrix))
+    q = matrix[trans][:, trans].toarray()
+    r = matrix[trans][:, term_idx].toarray()
+    solution = np.linalg.solve(np.eye(len(trans)) - q, r)
+    probs = np.zeros((matrix.shape[0], len(term_idx)), dtype=float)
+    probs[trans] = solution
+    probs[term_idx, np.arange(len(term_idx))] = 1.0
+    negatives = int((probs < 0).sum())
+    probs = np.clip(probs, 0.0, None)
+    row = probs.sum(axis=1)
+    probs = np.divide(probs, row[:, None], out=np.zeros_like(probs), where=row[:, None] > 0)
+    names = [str(x) for x in terms.cat.categories]
+    counts = {str(k): int(v) for k, v in terms.value_counts().items()}
+    return names, probs, counts, negatives
+
+
+def _compute_fate(estimator, kernel, log, record):
+    """统一 GPCCA 命运概率：迭代/直接失败时回退到可控的直接吸收求解。"""
+    terms = estimator.terminal_states
+    args = dict(use_petsc=False, n_jobs=1, backend='threading', show_progress_bar=False)
+    try:
+        estimator.compute_fate_probabilities(solver='direct', **args)
+        fp = estimator.fate_probabilities
+        return ([str(x) for x in fp.names], np.asarray(fp.X, dtype=float),
+                terms, {str(k): int(v) for k, v in terms.value_counts().items()}, 0)
+    except ValueError as exc:
+        log('GPCCA 命运概率求解失败，改用直接吸收求解：' + str(exc)[:160])
+        record('cellflow.absorption_direct', _absorption_direct, limit=1200)
+        names, probs, counts, negatives = _absorption_direct(kernel, terms)
+        if negatives:
+            log(f'直接吸收求解出现 {negatives} 个极小负值，已裁剪到 0 并逐行归一化')
+        return names, probs, terms, counts, negatives
+
+
 def _fate_block(a, config, record, log, cluster_key, use_velocity):
     """CellRank 命运概率。有速度用速度图做核（不需要起点），否则用 DPT 拟时序做核。"""
     import cellrank as cr
@@ -462,29 +511,10 @@ def _fate_block(a, config, record, log, cluster_key, use_velocity):
     record('GPCCA.predict_terminal_states', estimator.predict_terminal_states)
     estimator.predict_terminal_states()
     record('GPCCA.compute_fate_probabilities', estimator.compute_fate_probabilities,
-           use_petsc=False, n_jobs=1, backend='threading', show_progress_bar=False)
-    # 小数据优先直接求解：迭代求解器在部分 scipy/BLAS 组合下会产生负概率
-    small = int(a.n_obs) <= 5000
-    try:
-        if small:
-            estimator.compute_fate_probabilities(use_petsc=False, solver='direct', n_jobs=1,
-                                                 backend='threading', show_progress_bar=False)
-        else:
-            estimator.compute_fate_probabilities(use_petsc=False, n_jobs=1, backend='threading',
-                                                 show_progress_bar=False)
-    except ValueError as exc:
-        # scipy 版本差异下默认迭代求解器可能报 "value(s) are negative"；小数据改用直接求解
-        log('命运概率默认求解器失败，改用 solver=direct 重试：' + str(exc)[:200])
-        record('GPCCA.compute_fate_probabilities', estimator.compute_fate_probabilities,
-               use_petsc=False, solver='direct', n_jobs=1, backend='threading',
-               show_progress_bar=False)
-        estimator.compute_fate_probabilities(use_petsc=False, solver='direct', n_jobs=1,
-                                             backend='threading', show_progress_bar=False)
-    fp = estimator.fate_probabilities
-    names = [str(x) for x in fp.names]
-    probs = np.asarray(fp.X, dtype=float)
-    terms = estimator.terminal_states
-    term_counts = {str(k): int(v) for k, v in terms.value_counts().items()} if terms is not None else {}
+           use_petsc=False, solver='direct', n_jobs=1, backend='threading',
+           show_progress_bar=False)
+    names, probs, terms, term_counts, fate_negatives = _compute_fate(estimator, kernel, log, record)
+
     caveats, stats, early = [], {}, []
     try:
         macro = np.asarray(estimator.macrostates.astype(str))
@@ -919,14 +949,11 @@ def run_adapter(method, data, config, folder, log):
         record('GPCCA.predict_terminal_states', estimator.predict_terminal_states)
         estimator.predict_terminal_states()
         record('GPCCA.compute_fate_probabilities', estimator.compute_fate_probabilities,
-               use_petsc=False, n_jobs=1, backend='threading', show_progress_bar=False)
-        estimator.compute_fate_probabilities(use_petsc=False, n_jobs=1, backend='threading',
-                                             show_progress_bar=False)
-        fp = estimator.fate_probabilities
-        names = [str(x) for x in fp.names]
-        probs = np.asarray(fp.X, dtype=float)
-        terms = estimator.terminal_states
-        term_counts = {str(k): int(v) for k, v in terms.value_counts().items()} if terms is not None else {}
+               use_petsc=False, solver='direct', n_jobs=1, backend='threading',
+               show_progress_bar=False)
+        names, probs, terms, term_counts, fate_negatives = _compute_fate(estimator, kernel, log, record)
+        if fate_negatives:
+            log(f'直接吸收求解裁剪 {fate_negatives} 个极小负值')
         # 诊断：终末状态“落在拟时序早端”时，多半是图结构/吸收态造成的，
         # 不应被读成“细胞最终回到早期状态”。这里先算出来，报告里明确标注。
         term_stats, early_states = {}, []

@@ -314,5 +314,55 @@ class RegVeloContract(unittest.TestCase):
         self.assertIn('verified', train)
 
 
+class FateFallback(unittest.TestCase):
+    """GPCCA 求解器在部分 scipy/BLAS 上产生负概率时，必须能回退到可控吸收求解。"""
+
+    def _kernel_and_terms(self):
+        import numpy as np
+        import pandas as pd
+        import scipy.sparse as sp
+        from types import SimpleNamespace
+        matrix = sp.csr_matrix(np.array([
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.4, 0.1, 0.3, 0.2],
+            [0.1, 0.3, 0.2, 0.4],
+        ]))
+        terms = pd.Series(pd.Categorical(['T1', 'T2', None, None]))
+        return SimpleNamespace(transition_matrix=matrix), terms
+
+    def test_direct_absorption_is_finite_and_normalized(self):
+        import numpy as np
+        from cellflow.adapters import _absorption_direct
+        kernel, terms = self._kernel_and_terms()
+        names, probs, counts, negatives = _absorption_direct(kernel, terms)
+        self.assertEqual(names, ['T1', 'T2'])
+        self.assertEqual(probs.shape, (4, 2))
+        self.assertTrue(np.isfinite(probs).all())
+        self.assertTrue((probs >= 0).all())
+        np.testing.assert_allclose(probs.sum(axis=1), 1.0, rtol=1e-9)
+        self.assertEqual(counts['T1'], 1)
+        self.assertGreaterEqual(negatives, 0)
+
+    def test_compute_fate_recovers_from_solver_error(self):
+        import numpy as np
+        from types import SimpleNamespace
+        from cellflow.adapters import _compute_fate
+        kernel, terms = self._kernel_and_terms()
+
+        class BrokenEstimator:
+            terminal_states = terms
+
+            def compute_fate_probabilities(self, *args, **kwargs):
+                raise ValueError('`3` value(s) are negative. use a direct solver')
+
+        names, probs, got_terms, counts, negatives = _compute_fate(
+            BrokenEstimator(), kernel, lambda *a, **k: None, lambda *a, **k: None)
+        self.assertEqual(names, ['T1', 'T2'])
+        self.assertTrue((probs >= 0).all())
+        np.testing.assert_allclose(probs.sum(axis=1), 1.0, rtol=1e-9)
+        self.assertIs(got_terms, terms)
+
+
 if __name__ == '__main__':
     unittest.main()
