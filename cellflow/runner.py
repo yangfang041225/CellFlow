@@ -26,12 +26,14 @@ DEFAULTS = dict(method='qc', seed=42, n_top_genes=2000, n_neighbors=30, n_pcs=30
                 raw_su_confirmed=False, mt_prefix='MT-', species='', tissue='', sample_key='',
                 group_key='', root_cell='', root_reason='', grn_path='', grn_source='', grn_confirmed=False,
                 use_umap=True, leiden_resolution=1.0, cellrank_n_states=3,
+                cellrank_terminal='',
                 device='auto', velocity_model='stochastic',
                 arrow_scale=1.0, arrow_density=120)
 
 _TRUE_FALSE = ('raw_x_confirmed', 'raw_su_confirmed', 'grn_confirmed', 'use_umap')
 _TEXT = ('method', 'mt_prefix', 'species', 'tissue', 'sample_key', 'group_key', 'root_cell',
-         'root_reason', 'grn_path', 'grn_source', 'device', 'velocity_model')
+         'root_reason', 'grn_path', 'grn_source', 'device', 'velocity_model',
+         'cellrank_terminal')
 
 
 def normalize_config(config):
