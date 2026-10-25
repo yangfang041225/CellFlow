@@ -27,6 +27,34 @@ from .registry import (DEFAULT_VELOCITY_MODEL, FAMILIES, INDEX, METHODS, VELOCIT
 from .reports import bundle_entries
 from .runner import DEFAULTS, normalize_config, validate
 
+def _watch_parent_process():
+    """直接关掉启动器时，让 API 跟随退出，避免留下孤儿 uvicorn。"""
+    import os as _os
+    import threading
+    import time as _time
+    pid = int(_os.environ.get('CELLFLOW_PARENT_PID') or 0)
+    if _os.name != 'nt' or not pid:
+        return
+    import ctypes
+    synchronize = 0x00100000
+    kernel = ctypes.windll.kernel32
+    while True:
+        handle = kernel.OpenProcess(synchronize, False, pid)
+        if not handle:
+            _os._exit(0)
+        code = kernel.WaitForSingleObject(handle, 0)
+        kernel.CloseHandle(handle)
+        if code == 0:          # WAIT_OBJECT_0：父进程已退出
+            _os._exit(0)
+        _time.sleep(2)
+
+
+if os.environ.get('CELLFLOW_PARENT_PID'):
+    import threading as _threading
+    _threading.Thread(target=_watch_parent_process, daemon=True,
+                      name='cellflow-parent-watch').start()
+
+
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWED_ROOTS = (ROOT / 'results' / 'inputs', ROOT / 'data' / 'public', ROOT / 'examples')
 WEB_DIST = ROOT / 'web' / 'dist'
