@@ -71,9 +71,9 @@ queued ──claim──> running ──ok──> completed
 running 且 PID 失联（重启后）──> failed（interrupted，日志保留）
 ```
 
-- 任务记录：`results/queue.sqlite`（表 `jobs`，含 `fingerprint`、`pid`、`dataset`、`name`、`cancel_requested`、`project_id`）。
+- 任务记录：`results/queue.sqlite`（表 `jobs`，含 `fingerprint`、`project_id`、`dataset`、`name`、`pid`、`child_pid`、`child_created`、`heartbeat`、`lease_until`、`failure_kind`、`cancel_requested`）。全局并发由 `CELLFLOW_MAX_CONCURRENT`（默认 1）限制；租约 `CELLFLOW_JOB_LEASE_SECONDS=900`，心跳 `CELLFLOW_HEARTBEAT_SECONDS=30`，取消等待 `CELLFLOW_CANCEL_TIMEOUT=15`。
 - 每个任务目录：`results/<任务ID>/`，含输入副本、配置、环境、源码副本、日志、图、报告、`quality.json`。
-- 队列去重：同「输入内容哈希 + 方法 + 配置」的活动任务直接复用。
+- 队列去重：同「输入内容哈希 + 方法 + 配置 + project_id」的活动任务才复用；跨项目不复用。
 
 ## 5. 桌面启动链
 
