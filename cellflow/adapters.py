@@ -13,13 +13,97 @@ import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import LinearOperator, svds
 from .data import to_anndata, ids_hash, AUTO_GROUP
+from .data import declaration as preprocessing_declaration
+from .data import effective_scale, require_protocol_scale
+from .data import summary as matrix_summary, scale_report
 from . import device as device_mod
 
-# ---------------------------------------------------------------- 基础工具
-def pca2(data, config):
-    """不依赖 scanpy 的快速二维 PCA（质控/演示用）。"""
+# ---------------------------------------------------------------- 版本相关的科学常量
+# scvi-tools 1.2.0 的 VELOVI.setup_anndata 用 LayerField(..., is_count_data=False)，
+# 参数文档写的是 spliced/unspliced **normalized** expression；官方教程喂的是 scVelo 的 Ms/Mu。
+# 换 scvi-tools 版本时这两个常量先被测试盯住，避免悄悄跑成“把计数当 normalized”。
+VELOVI_INPUT = 'ms_mu_normalized'
+VELOVI_INPUT_LAYERS = ('Ms', 'Mu')
+
+# ---------------------------------------------------------------- 预处理声明（F19）
+def new_declaration(data, config, folder=None, result=None):
+    """建立本次任务的输入层/尺度声明；每个方法都必须先拿到它再动数据。
+
+    声明会写进 result['preprocessing']，并另存一份 preprocessing.json，
+    里面有：用户声明、数值观察、有效结论、冲突，以及**实际执行过的每一步变换**。
+    """
+    decl = preprocessing_declaration(data, config)
+    if result is not None:
+        result['preprocessing'] = decl
+    if folder is not None:
+        write_declaration(folder, decl)
+    return decl
+
+
+def write_declaration(folder, decl):
+    """把声明写到任务目录（与 calls.json 并列的审计文件）。失败不影响计算。"""
+    try:
+        Path(folder, 'preprocessing.json').write_text(
+            json.dumps(decl, ensure_ascii=False, indent=2, default=str), encoding='utf-8')
+    except Exception:
+        pass
+
+
+def declare_step(decl, action, **detail):
+    """记录一步真实执行过的预处理（只记真做了的事，不记“计划要做”的事）。"""
+    if decl is None:
+        return None
+    steps = decl.setdefault('steps', [])
+    entry = dict(order=len(steps) + 1, action=action)
+    entry.update(detail)
+    steps.append(entry)
+    return entry
+
+
+def require_counts(decl, names, who):
+    """需要原始计数的方法先过这一关（实现放在 data.require_protocol_scale，便于单测）。"""
+    require_protocol_scale(decl, names, who)
+
+
+def select_hvg(a, config, record, log, scale, decl=None):
+    """按**有效尺度**选高变基因（F19：不能对尺度不明的大数值数据假设“已取过对数”）。
+
+    scanpy 的 seurat / cell_ranger flavor 会对均值做 expm1（即假设输入是 log 尺度）；
+    对线性归一化或尺度不明的数据（例如 TPM、max 数千）会溢出成 inf 后报错。
+    因此只在 counts / log 时调用 scanpy，其余情况按方差排序（与尺度假设无关）。
+    """
+    import scanpy as sc
+    n_top = int(min(config['n_top_genes'], a.n_vars))
+    if scale in ('counts', 'log'):
+        record('scanpy.pp.highly_variable_genes', sc.pp.highly_variable_genes,
+               n_top_genes=n_top, flavor='seurat')
+        sc.pp.highly_variable_genes(a, n_top_genes=n_top, flavor='seurat')
+        declare_step(decl, 'highly_variable_genes', n_top_genes=n_top, flavor='seurat')
+    else:
+        matrix = a.X.toarray() if sparse.issparse(a.X) else np.asarray(a.X, dtype=float)
+        variance = np.nanvar(matrix, axis=0)
+        order = np.argsort(np.nan_to_num(variance, nan=-np.inf))[::-1][:n_top]
+        a.var['highly_variable'] = False
+        a.var.iloc[order, a.var.columns.get_loc('highly_variable')] = True
+        declare_step(decl, 'highly_variable_genes_by_variance', n_top_genes=n_top,
+                     reason='X 尺度无法判定为 counts/log，不调用会 expm1 的 scanpy flavor')
+        log(f'X 尺度为 {scale}：改用方差排序选 {n_top} 个高变基因（不假设已取对数）')
+    a = a[:, a.var['highly_variable'].to_numpy()].copy()
+    if decl is not None:
+        steps = decl.setdefault('steps', [])
+        if steps:
+            steps[-1]['n_genes_after'] = int(a.n_vars)
+    return a, n_top
+
+
+def pca2(data, config, x_scale=None):
+    """不依赖 scanpy 的快速二维 PCA（质控/演示用）。
+
+    `x_scale` 用 declaration() 的有效结论；没给时退回旧的勾选判断（保持向后兼容）。
+    """
     x = sparse.csr_matrix(data.X, dtype=np.float64)
-    if config.get('raw_x_confirmed'):
+    scale = x_scale or ('counts' if config.get('raw_x_confirmed') else 'unknown')
+    if scale == 'counts':
         x = sparse.diags(1e4 / np.maximum(np.asarray(x.sum(1)).ravel(), 1)) @ x
         x.data = np.log1p(x.data)
     means = np.asarray(x.mean(0)).ravel()
@@ -61,11 +145,11 @@ class Recorder:
         self.log(name + ' ' + json.dumps(kwargs, ensure_ascii=False, default=str))
 
 
-def base_result(method, data, config):
+def base_result(method, data, config, decl=None):
     info = device_mod.resolve(config.get('device', 'auto'))
     return dict(method=method, synthetic=bool(data.synthetic),
                 cells_hash=ids_hash(data.cells), genes_hash=ids_hash(data.genes),
-                embedding=pca2(data, config).tolist(),
+                embedding=pca2(data, config, effective_scale(decl, 'X')).tolist(),
                 embedding_name='PCA（展示结构，不代表分化方向）', embedding_basis='pca',
                 time=None, time_name=None, metrics={}, gene_table=[], caveats=[],
                 velocity=None, evidence=[],
@@ -73,35 +157,34 @@ def base_result(method, data, config):
                 device_note=device_mod.note_for(method, info.device))
 
 
-def _prep_expression(a, config, seed, record, log):
-    """表达量方法的统一预处理，按 X 的实际状态决定要不要归一化。
+def _prep_expression(a, config, seed, record, log, decl=None):
+    """表达量方法的统一预处理，按**声明 + 观察**的有效尺度决定要不要改数值（F19）。
 
-    - counts：CP10k 归一化 + log1p
-    - scaled：只取对数（不再缩放）
+    - counts：CP10k 归一化 + log1p（声明与观察一致才允许）
     - log：原样使用（避免二次归一化把数值搞坏）
+    - unknown：一律不改数值，只做特征选择/降维；并在结果里写明“未判定”
     """
     import scanpy as sc
-    from .data import x_kind
-    kind = x_kind(a.X)
-    if kind == 'counts' and not config.get('raw_x_confirmed'):
-        raise ValueError('X 看起来是原始计数（整数），但尚未勾选“X 是未归一化原始计数”。'
-                         '为避免在未知处理史上做会改变数值的归一化，本次停止。'
-                         '请先在数据页确认该声明，或提供已归一化/对数化的 X。')
-    if kind == 'counts':
+    scale = effective_scale(decl, 'X')
+    if scale == 'counts':
         record('scanpy.pp.normalize_total', sc.pp.normalize_total, target_sum=1e4)
         sc.pp.normalize_total(a, target_sum=1e4)
         sc.pp.log1p(a)
-        log('X 是整数计数：已做 CP10k 归一化 + log1p')
-    elif kind == 'scaled':
-        sc.pp.log1p(a)
-        log('X 像是已缩放到人为总量：只做 log1p，未再缩放')
+        declare_step(decl, 'normalize_total', matrix='X', target_sum=1e4)
+        declare_step(decl, 'log1p', matrix='X')
+        log('X：声明与观察一致为原始计数 → CP10k 归一化 + log1p')
+    elif scale == 'log':
+        declare_step(decl, 'use_as_is', matrix='X', reason='观察为已取对数')
+        log('X 观察为已取对数：跳过归一化与 log1p，直接用于特征选择')
     else:
-        log('X 看起来已经取过对数：跳过归一化与 log1p，直接用于特征选择')
-    n_top = int(min(config['n_top_genes'], a.n_vars))
-    record('scanpy.pp.highly_variable_genes', sc.pp.highly_variable_genes,
-           n_top_genes=n_top, flavor='seurat')
-    sc.pp.highly_variable_genes(a, n_top_genes=n_top, flavor='seurat')
-    a = a[:, a.var['highly_variable']].copy()
+        observed = ((decl or {}).get('observed') or {}).get('X')
+        if observed == 'counts':
+            raise ValueError(
+                'X 观察为整数计数，但尚未勾选“X 是未归一化原始计数”。为避免在未知处理史上做会改变数值的'
+                '归一化，本次停止。请先在数据页确认该声明，或提供已归一化/取过对数的 X。')
+        declare_step(decl, 'no_op', matrix='X', reason='尺度 unknown，禁止改数值')
+        log('X 尺度无法判定（unknown）：不做归一化/取对数，只做不改变数值的降维与分群')
+    a, n_top = select_hvg(a, config, record, log, scale, decl)
     if a.n_vars < 10:
         raise ValueError('高变基因过滤后不足 10 个基因；不强行运行')
     n_pcs = int(min(config['n_pcs'], a.n_vars - 1, a.n_obs - 1))
@@ -211,39 +294,49 @@ def _group_time_summary(t, labels):
 
 
 # ---------------------------------------------------------------- velocity 工具箱
-def _prepare_velocity_x(a, log):
-    """scVelo 需要 counts 形式的 X。
+def _prepare_velocity_x(a, log, decl=None):
+    """scVelo / veloVI 需要 counts 形式的 X。
 
     真实数据常见情况：X 已经归一化/取过对数，但 spliced/unspliced 仍是原始计数
     （velocyto、STARsolo 的输出就是这样）。这时用 spliced+unspliced 重建 X，
     这是 scVelo 的标准约定，而不是“偷偷改数据”。
     """
-    from .data import x_kind
-    kind = x_kind(a.X)
-    if kind == 'counts':
-        return 'X 为整数计数，直接使用', kind
+    if effective_scale(decl, 'X') == 'counts':
+        return 'X 为原始计数，直接使用', 'counts'
     ok = all(k in a.layers for k in ('spliced', 'unspliced'))
-    if ok and x_kind(a.layers['spliced']) == 'counts' and x_kind(a.layers['unspliced']) == 'counts':
+    if (ok and effective_scale(decl, 'spliced') == 'counts'
+            and effective_scale(decl, 'unspliced') == 'counts'):
         total = a.layers['spliced'] + a.layers['unspliced']
         a.X = sparse.csr_matrix(total) if sparse.issparse(total) else np.asarray(total)
+        declare_step(decl, 'rebuild_X', source='spliced+unspliced',
+                     reason='X 不是原始计数，但剪接两层是（scVelo 标准做法）')
         return 'X 不是原始计数：用 spliced+unspliced 重建计数矩阵（scVelo 的标准做法）', 'counts'
-    return 'X 不是原始计数，且剪接层也不是整数计数：velocity 结果可能不可靠，请先核实数据来源', kind
+    return ('X 不是原始计数，且剪接层也不都是整数计数：速度结果不可靠，'
+            '请先核实数据来源（程序不会替你猜）'), effective_scale(decl, 'X')
 
 
-def _scvelo_prepare(a, config, seed, record, log):
-    """scVelo 专用预处理：过滤 → 归一化(含剪接层) → log1p → HVG → PCA/邻域/UMAP → moments。"""
+def _scvelo_prepare(a, config, seed, record, log, decl=None):
+    """scVelo 与 veloVI 共用的剪接数据协议（F19：auto 与单独方法必须同一套）。
+
+    步骤与官方教程一致：filter_genes → normalize_per_cell(含 S/U 层) → log1p(X)
+    → HVG → PCA/邻域/UMAP → moments(Ms/Mu)。
+    说明：scanpy 的 log1p 只作用于 X；spliced/unspliced 保持 normalize_per_cell 后的
+    线性值——这与 scVelo 0.3.4 的 filter_and_normalize 实际行为、以及官方教程
+    “Normalized count data: X, spliced, unspliced / Logarithmized X” 的日志一致。
+    """
     import scanpy as sc
     import scvelo as scv
+    require_counts(decl, ('spliced', 'unspliced'), 'RNA velocity（scVelo / veloVI）')
     record('scvelo.pp.filter_genes', scv.pp.filter_genes, min_shared_counts=config['min_shared_counts'])
     scv.pp.filter_genes(a, min_shared_counts=config['min_shared_counts'])
+    declare_step(decl, 'filter_genes', min_shared_counts=int(config['min_shared_counts']))
     record('scvelo.pp.normalize_per_cell', scv.pp.normalize_per_cell,
            counts_per_cell_after=1e4, layers=['spliced', 'unspliced'], enforce=True)
     scv.pp.normalize_per_cell(a, counts_per_cell_after=1e4, layers=['spliced', 'unspliced'], enforce=True)
+    declare_step(decl, 'normalize_per_cell', target_sum=1e4, layers=['X', 'spliced', 'unspliced'])
     sc.pp.log1p(a)
-    n_top = int(min(config['n_top_genes'], a.n_vars))
-    record('scanpy.pp.highly_variable_genes', sc.pp.highly_variable_genes, n_top_genes=n_top, flavor='seurat')
-    sc.pp.highly_variable_genes(a, n_top_genes=n_top, flavor='seurat')
-    a = a[:, a.var['highly_variable']].copy()
+    declare_step(decl, 'log1p', matrix='X', note='layers spliced/unspliced 保持线性归一化值（与官方教程一致）')
+    a, _n_top = select_hvg(a, config, record, log, effective_scale(decl, 'X'), decl)
     if a.n_vars < 10:
         raise ValueError('剪接共同计数过滤后不足 10 个基因；请检查数据或有依据地调整 min_shared_counts')
     n_pcs = int(min(config['n_pcs'], a.n_vars - 1, a.n_obs - 1))
@@ -257,6 +350,19 @@ def _scvelo_prepare(a, config, seed, record, log):
         sc.tl.umap(a, random_state=seed)
     record('scvelo.pp.moments', scv.pp.moments, n_pcs=None, n_neighbors=None)
     scv.pp.moments(a, n_pcs=None, n_neighbors=None)
+    declare_step(decl, 'moments', produces=['Ms', 'Mu'])
+    # F19：auto 与单独方法的协议一致性要能被验证，所以把 Ms/Mu+邻接图打成指纹放进声明。
+    if decl is not None:
+        try:
+            fingerprint = hashlib.sha256()
+            for matrix in (a.layers['Ms'], a.layers['Mu'], a.obsp['connectivities']):
+                csr = sparse.csr_matrix(matrix)
+                for part in (csr.data, csr.indices, csr.indptr):
+                    fingerprint.update(np.ascontiguousarray(part).tobytes())
+                fingerprint.update(str(csr.shape).encode())
+            decl['ms_mu_fingerprint'] = fingerprint.hexdigest()
+        except Exception as exc:
+            log('Ms/Mu 指纹计算失败（不影响计算）：' + repr(exc))
     log(f'velocity 预处理完成：基因 {a.n_vars}，PCA {n_pcs} 维，邻居 {k}')
     return a, dict(n_hvg=int(a.n_vars), n_pcs=n_pcs, n_neighbors=k,
                    min_shared_counts=int(config['min_shared_counts']))
@@ -407,8 +513,12 @@ def _fate_block(a, config, record, log, cluster_key, use_velocity):
     return fate, metrics, caveats
 
 
-def _auto_pipeline(data, config, folder, record, log, result):
-    """一键分析：质控 → 分群 → PAGA →（有剪接层）速度 →（有速度/起点）命运。"""
+def _auto_pipeline(data, config, folder, record, log, result, decl=None):
+    """一键分析：质控 → 分群 → PAGA →（有剪接层）速度 →（有速度/起点）命运。
+
+    预处理与单独运行同一方法时走**同一个**函数（_prep_expression / _scvelo_prepare），
+    这样 auto 与独立方法的预处理不再分叉（F19）。
+    """
     import scanpy as sc
     seed = int(config['seed'])
     a = to_anndata(data)
@@ -420,12 +530,12 @@ def _auto_pipeline(data, config, folder, record, log, result):
                and bool(str(config.get('root_reason', '')).strip()))
 
     if use_velocity:
-        message, _ = _prepare_velocity_x(a, log)
+        message, _ = _prepare_velocity_x(a, log, decl)
         log('一键分析 · velocity 分支：' + message)
-        a, eff = _scvelo_prepare(a, config, seed, record, log)
+        a, eff = _scvelo_prepare(a, config, seed, record, log, decl)
         result['caveats'].append('本次按剪接层流程处理：' + message)
     else:
-        a, eff = _prep_expression(a, config, seed, record, log)
+        a, eff = _prep_expression(a, config, seed, record, log, decl)
         why = ('数据里没有 spliced/unspliced 层' if not has_su
                else '剪接层未确认是原始计数')
         result['caveats'].append(f'{why}：本次没有做 RNA velocity，也没有命运概率。')
@@ -572,19 +682,29 @@ def run_adapter(method, data, config, folder, log):
     np.random.seed(seed)
     folder = Path(folder)
     record = Recorder(folder, log)
-    result = base_result(method, data, config)
+    # F19：任何方法动数据之前，先建立输入层/尺度声明（声明 + 观察 + 有效结论）。
+    decl = preprocessing_declaration(data, config)
+    result = base_result(method, data, config, decl)
+    result['preprocessing'] = decl
+    result['preprocessing_protocol'] = decl['protocol']
+    write_declaration(folder, decl)
+    for conflict in decl['conflicts']:
+        result['caveats'].append('预处理声明冲突：' + conflict)
 
     if method in ('qc', 'demo'):
+        declare_step(decl, 'pca_display', x_scale=effective_scale(decl, 'X'))
         if method == 'demo' and 'demo_time' in data.obs:
             result['time'] = np.asarray(data.obs['demo_time']).tolist()
             result['time_name'] = '已知模拟时间（由生成器给出，不是模型推断）'
         result['caveats'].append('未拟合 RNA velocity，未预测终末细胞或调控网络。')
         result['metrics']['note'] = '仅描述性质控与降维展示'
+        write_declaration(folder, decl)
         log('PCA 与描述性质控完成')
         return result
 
     if method == 'auto':
-        result, a = _auto_pipeline(data, config, folder, record, log, result)
+        result, a = _auto_pipeline(data, config, folder, record, log, result, decl)
+        write_declaration(folder, decl)
         _write_anndata(a, folder / 'analysis.h5ad', log)
         return result
 
@@ -594,7 +714,7 @@ def run_adapter(method, data, config, folder, log):
     a.uns['cellflow_synthetic'] = bool(data.synthetic)
 
     if method == 'leiden':
-        a, eff = _prep_expression(a, config, seed, record, log)
+        a, eff = _prep_expression(a, config, seed, record, log, decl)
         key = _leiden(a, config, seed, record, log)
         result['effective'] = eff
         result['groups'] = dict(
@@ -617,7 +737,7 @@ def run_adapter(method, data, config, folder, log):
         log('自动分群完成')
 
     elif method == 'dpt':
-        a, eff = _prep_expression(a, config, seed, record, log)
+        a, eff = _prep_expression(a, config, seed, record, log, decl)
         result['effective'] = eff
         t, n_dcs = _diffmap_dpt(a, config, seed, record, log, config['root_cell'])
         result['time'] = [float(v) if np.isfinite(v) else None for v in t]
@@ -642,7 +762,7 @@ def run_adapter(method, data, config, folder, log):
         log('DPT 完成')
 
     elif method == 'paga':
-        a, eff = _prep_expression(a, config, seed, record, log)
+        a, eff = _prep_expression(a, config, seed, record, log, decl)
         result['effective'] = eff
         key = _group_labels(a, config, record, log)
         record('scanpy.tl.paga', sc.tl.paga, groups=key)
@@ -671,33 +791,11 @@ def run_adapter(method, data, config, folder, log):
 
     elif method in ('scvelo_deterministic', 'scvelo_stochastic', 'scvelo_dynamical'):
         import scvelo as scv
-        # scVelo 0.3.4 的 filter_and_normalize 已不再接收 n_top_genes/log1p；
-        # 这里显式逐步调用，避免依赖过期教程的包装行为。
-        record('scvelo.pp.filter_genes', scv.pp.filter_genes, min_shared_counts=config['min_shared_counts'])
-        scv.pp.filter_genes(a, min_shared_counts=config['min_shared_counts'])
-        record('scvelo.pp.normalize_per_cell', scv.pp.normalize_per_cell,
-               counts_per_cell_after=1e4, layers=['spliced', 'unspliced'], enforce=True)
-        scv.pp.normalize_per_cell(a, counts_per_cell_after=1e4, layers=['spliced', 'unspliced'], enforce=True)
-        sc.pp.log1p(a)
-        n_top = int(min(config['n_top_genes'], a.n_vars))
-        record('scanpy.pp.highly_variable_genes', sc.pp.highly_variable_genes, n_top_genes=n_top, flavor='seurat')
-        sc.pp.highly_variable_genes(a, n_top_genes=n_top, flavor='seurat')
-        a = a[:, a.var['highly_variable']].copy()
-        if a.n_vars < 10:
-            raise ValueError('剪接共同计数过滤后不足 10 个基因；请检查数据或有依据地调整阈值')
-        n_pcs = int(min(config['n_pcs'], a.n_vars - 1, a.n_obs - 1))
-        record('scanpy.pp.pca', sc.pp.pca, n_comps=n_pcs, random_state=seed)
-        sc.pp.pca(a, n_comps=n_pcs, random_state=seed)
-        k = int(min(config['n_neighbors'], a.n_obs - 1))
-        record('scanpy.pp.neighbors', sc.pp.neighbors, n_neighbors=k, n_pcs=n_pcs, random_state=seed)
-        sc.pp.neighbors(a, n_neighbors=k, n_pcs=n_pcs, random_state=seed)
-        if config.get('use_umap') and a.n_obs >= 50:
-            record('scanpy.tl.umap', sc.tl.umap, random_state=seed)
-            sc.tl.umap(a, random_state=seed)
-        record('scvelo.pp.moments', scv.pp.moments, n_pcs=None, n_neighbors=None)
-        scv.pp.moments(a, n_pcs=None, n_neighbors=None)
-        result['effective'] = dict(n_hvg=int(a.n_vars), n_pcs=n_pcs, n_neighbors=k,
-                                   min_shared_counts=int(config['min_shared_counts']))
+        # F19：与一键分析共用同一套预处理函数（不再各写一份，避免 auto/单独方法分叉）。
+        message, _ = _prepare_velocity_x(a, log, decl)
+        log('scVelo · ' + message)
+        a, eff = _scvelo_prepare(a, config, seed, record, log, decl)
+        result['effective'] = eff
         log('S/U 共享预处理与 moments 完成')
         # scVelo 官方 mode：deterministic(稳态) / stochastic / dynamical，直接透传给上游，不自写算法
         mode = {'scvelo_dynamical': 'dynamical',
@@ -781,7 +879,7 @@ def run_adapter(method, data, config, folder, log):
 
     elif method == 'cellrank':
         import cellrank as cr
-        a, eff = _prep_expression(a, config, seed, record, log)
+        a, eff = _prep_expression(a, config, seed, record, log, decl)
         result['effective'] = eff
         if int(a.n_obs) > 6000:
             raise ValueError('CellRank 的 GPCCA 分解需要把细胞×细胞矩阵稠密化；'
@@ -879,20 +977,36 @@ def run_adapter(method, data, config, folder, log):
         log('CellRank 命运概率完成：终末状态 ' + ','.join(names))
 
     elif method == 'velovi':
-        a, eff = _velovi(a, config, record, log, folder, result)
+        a, eff = _velovi(a, config, record, log, folder, result, decl)
         result['effective'] = eff
     elif method == 'regvelo':
-        a = _regvelo_prep(a, config, seed, record, log)
-        a = _regvelo(a, config, folder, log)
-        result['effective'] = {'n_genes_after_preprocess': int(a.n_vars)}
-        result['caveats'].append('RegVelo 0.4.2 CPU 接入未输出调控边；官方 inferred_grn 函数固定使用 CUDA。')
+        a, prep_audit = _regvelo_prep(a, config, seed, record, log, decl)
+        a, run_audit = _regvelo(a, config, folder, log, decl, prep_audit)
+        result['effective'] = prep_audit
+        result['regvelo'] = run_audit
+        result['caveats'].append('RegVelo 0.4.2 的 CPU 适配没有调用官方 inferred_grn（源码写死 cuda:0），'
+                                 '因此本次**不输出调控边**；速度是模型内部量，未经实验标定。')
         if 'cellflow_regvelo_time' in a.obs:
             result['time'] = a.obs['cellflow_regvelo_time'].astype(float).tolist()
             result['time_name'] = 'RegVelo 模型内部共享相对时间（未实验标定）'
-        result['evidence'].append('RegVelo 0.4.2 CPU（实验接入）')
+        velocity = _regvelo_velocity(a, folder, result)
+        result['velocity'] = 'velocity.npz'
+        result['genes_hash'] = ids_hash(a.var_names)
+        result['metrics']['n_genes_velocity'] = int(velocity.shape[1])
+        coords, name, basis = _embedding(a, config)
+        result['embedding'] = coords.tolist()
+        result['embedding_basis'] = basis
+        result['embedding_name'] = name + '（RegVelo 结果对象；二维投影可能失真）'
+        if 'velocity_' + basis in a.obsm:
+            result['arrows'] = np.asarray(a.obsm['velocity_' + basis][:, :2]).tolist()
+        result['gene_table'] = _regvelo_gene_table(a, velocity)
+        result['evidence'].append('RegVelo 0.4.2（实验接入；设备 %s）' % run_audit.get('device', 'unknown'))
     else:
         raise ValueError('未知方法：' + str(method))
 
+    # 声明里的 steps 是运行中逐条追加的，所以到这里再落盘一次（覆盖最初的快照）。
+    result['preprocessing'] = decl
+    write_declaration(folder, decl)
     _write_anndata(a, folder / 'analysis.h5ad', log)
     return result
 
@@ -906,7 +1020,29 @@ def _to_numpy(value):
     return np.asarray(value, dtype=float)
 
 
-def _velovi(a, config, record, log, folder, result):
+def _velovi_registered_layers(VELOVI, a):
+    """读出模型实际注册的层名，用来证明喂给模型的是 Ms/Mu 而不是原始计数。
+
+    scvi-tools 1.2.0 的 registry 结构：field_registries[X|U].data_registry = {attr_name, attr_key}。
+    """
+    out = {}
+    try:
+        manager = VELOVI._get_most_recent_anndata_manager(a, required=False)
+    except Exception:
+        manager = None
+    if manager is None:
+        return out
+    registry = getattr(manager, 'registry', {}) or {}
+    fields = registry.get('field_registries', {}) or {}
+    for key, field in fields.items():
+        data_registry = (field or {}).get('data_registry') or {}
+        out[str(key)] = dict(attr_name=data_registry.get('attr_name'),
+                             layer=data_registry.get('attr_key'))
+    out['setup_args'] = dict(registry.get('setup_args') or {})
+    return out
+
+
+def _velovi(a, config, record, log, folder, result, decl=None):
     """veloVI（YosefLab，scvi-tools 官方实现）：变分推断，给出速度**和不确定性**。
 
     这不是本程序自写算法：模型、训练、推断全部调用 scvi-tools 官方的 VELOVI，
@@ -935,42 +1071,56 @@ def _velovi(a, config, record, log, folder, result):
     except Exception:
         pass
 
-    # 预处理：X 用于选高变基因/降维（需要归一化 + log1p）；
-    # **不能动 layers 里的 spliced/unspliced**——VELOVI 需要原始计数自己估计尺寸因子。
-    from .data import x_kind
-    record('scvelo.pp.filter_genes', scv.pp.filter_genes, min_shared_counts=config['min_shared_counts'])
-    scv.pp.filter_genes(a, min_shared_counts=config['min_shared_counts'])
-    kind = x_kind(a.X)
-    if kind == 'counts':
-        sc.pp.normalize_total(a, target_sum=1e4)
-        sc.pp.log1p(a)
-        log('veloVI 预处理：X 按原始计数归一化 + log1p（layers 保持原始计数）')
-    elif kind == 'scaled':
-        sc.pp.log1p(a)
-        log('veloVI 预处理：X 已缩放，只取对数（layers 保持原始计数）')
-    else:
-        log('veloVI 预处理：X 已是 log 尺度，直接用于选高变基因')
+    # ---- F11：VELOVI 的输入协议 -------------------------------------------------
+    # 已安装 scvi-tools 1.2.0 的 VELOVI.setup_anndata 用
+    #   LayerField(X_KEY, spliced_layer, is_count_data=False)
+    #   LayerField(U_KEY, unspliced_layer, is_count_data=False)
+    # 参数文档写的是 "spliced/unspliced **normalized** expression"，官方教程传的是
+    # scVelo 预处理后的 Ms/Mu（moment-smoothed layers）。所以：
+    #   1) 训练前必须先在原始 S/U 计数上做 scVelo 预处理（filter→normalize→moments）；
+    #   2) 注册给模型的是 Ms/Mu，不是原始计数；
+    #   3) S/U 不是整数计数（或声明不成立）时直接报错，绝不把原始计数当 normalized 喂进去。
+    if not all(k in a.layers for k in ('spliced', 'unspliced')):
+        raise ValueError('veloVI 需要 layers 里的 spliced/unspliced（原始剪接计数）；当前数据没有这两层。'
+                         '普通表达矩阵不能补出剪接层，本次停止而不是换成别的模型。')
+    require_counts(decl, ('spliced', 'unspliced'), 'veloVI')
+    message, _ = _prepare_velocity_x(a, log, decl)
+    log('veloVI · ' + message)
+    a, eff = _scvelo_prepare(a, config, seed, record, log, decl)
+    declare_step(decl, 'velovi_protocol', input='Ms/Mu',
+                 reason='scvi-tools 1.2.0 VELOVI.setup_anndata 声明 is_count_data=False，'
+                        '官方教程用 scVelo 预处理后的 Ms/Mu')
 
-    n_top = int(min(config['n_top_genes'], a.n_vars))
-    record('scanpy.pp.highly_variable_genes', sc.pp.highly_variable_genes,
-           n_top_genes=n_top, flavor='seurat')
-    sc.pp.highly_variable_genes(a, n_top_genes=n_top, flavor='seurat')
-    a = a[:, a.var['highly_variable']].copy()
-    if a.n_vars < 10:
-        raise ValueError('高变基因过滤后不足 10 个基因；请检查数据或调大 n_top_genes')
-    n_pcs = int(min(config['n_pcs'], a.n_vars - 1, a.n_obs - 1))
-    sc.pp.pca(a, n_comps=n_pcs, random_state=seed)
-    k = int(min(config['n_neighbors'], a.n_obs - 1))
-    sc.pp.neighbors(a, n_neighbors=k, n_pcs=n_pcs, random_state=seed)
-    if config.get('use_umap') and a.n_obs >= 50:
-        sc.tl.umap(a, random_state=seed)
+    def _layer_stats(name):
+        info = matrix_summary(a.layers[name])
+        report = scale_report(a.layers[name], info)
+        return dict(shape=list(info['shape']), integer_like=bool(info['integer_like']),
+                    min=report['evidence']['min'], max=report['evidence']['max'],
+                    mean_nonzero=report['evidence']['mean_nonzero'],
+                    nonzero=int(info['nonzero']), observed_scale=report['scale'],
+                    observed_basis=report['basis'])
 
-    log(f'veloVI：{a.n_obs} 细胞 × {a.n_vars} 基因，设备 {device.device}（accelerator={accelerator}）')
-    record('scvi.model.VELOVI.setup_anndata', VELOVI.setup_anndata,
-           spliced_layer='spliced', unspliced_layer='unspliced')
-    VELOVI.setup_anndata(a, spliced_layer='spliced', unspliced_layer='unspliced')
+    layer_stats = {}
+    for name in ('Ms', 'Mu'):
+        if name not in a.layers:
+            raise ValueError(f'veloVI 协议不满足：scVelo 预处理后缺少 {name} 层（moments 未生成）；'
+                             '不会用原始计数冒充模型输入。')
+        layer_stats[name] = _layer_stats(name)
+        if layer_stats[name]['integer_like']:
+            raise ValueError(f'veloVI 协议不满足：{name} 仍是整数外观，像是没经过归一化/平滑；'
+                             '为避免把计数当 normalized 表达，本次停止。')
+    log('veloVI 输入层：' + '；'.join(
+        f'{k} max={v["max"]:.3g} 非整数={not v["integer_like"]}' for k, v in layer_stats.items()))
 
     n_latent = int(min(10, max(2, a.n_obs - 1)))
+    log(f'veloVI：{a.n_obs} 细胞 × {a.n_vars} 基因，输入层 Ms/Mu，设备 {device.device}（accelerator={accelerator}）')
+    record('scvi.model.VELOVI.setup_anndata', VELOVI.setup_anndata,
+           spliced_layer='Ms', unspliced_layer='Mu')
+    VELOVI.setup_anndata(a, spliced_layer='Ms', unspliced_layer='Mu')
+    registered = _velovi_registered_layers(VELOVI, a)
+    declare_step(decl, 'setup_anndata', spliced_layer='Ms', unspliced_layer='Mu',
+                 registered_layers=registered, is_count_data=False)
+
     record('scvi.model.VELOVI', VELOVI, n_hidden=256, n_latent=n_latent, n_layers=2, dropout_rate=0.1)
     model = VELOVI(a, n_hidden=256, n_latent=n_latent, n_layers=2, dropout_rate=0.1)
 
@@ -1090,6 +1240,56 @@ def _velovi(a, config, record, log, folder, result):
     result['metrics']['accelerator'] = accelerator
     result['results_device'] = device.device
 
+    # ---- F11 审计：把“喂给模型的到底是什么”写进结果与独立文件
+    history = getattr(model, 'history', None)
+    elbo = None
+    epochs_ran = None
+    try:
+        frame = history['elbo_train'] if history is not None else None
+        if frame is not None and len(frame):
+            elbo = float(np.asarray(frame.iloc[-1]).ravel()[0])
+            epochs_ran = int(len(frame))
+            result['metrics']['elbo_train_final'] = elbo
+            result['metrics']['epochs_ran'] = epochs_ran
+    except Exception as exc:
+        log('veloVI 未能读取训练历史：' + repr(exc))
+    protocol = dict(
+        velovi_input='ms_mu_normalized',
+        model_input_layers=['Ms', 'Mu'],
+        is_count_data=False,
+        is_count_data_source='scvi-tools ' + getattr(scvi, '__version__', 'unknown') +
+                             ' VELOVI.setup_anndata 的 LayerField(..., is_count_data=False)',
+        setup_anndata_args=dict(spliced_layer='Ms', unspliced_layer='Mu'),
+        registered_layers=registered,
+        layer_stats_before_training=layer_stats,
+        normalize=dict(function='scvelo.pp.normalize_per_cell', target_sum=10000,
+                       layers=['X', 'spliced', 'unspliced']),
+        log1p=dict(X=True, spliced=False, unspliced=False,
+                   note='scanpy 语义只对 X 取对数；layers 保持线性归一化值'
+                        '（与 scVelo 0.3.4 的 filter_and_normalize 实际行为一致）'),
+        smoothing=dict(function='scvelo.pp.moments', layers=['Ms', 'Mu']),
+        min_shared_counts=int(config['min_shared_counts']),
+        n_top_genes=int(min(config['n_top_genes'], a.n_vars)),
+        max_epochs=max_epochs, epochs_ran=epochs_ran, elbo_train_final=elbo,
+        converged=bool(epochs_ran is not None and epochs_ran >= max_epochs),
+        accelerator=accelerator, device=device.device,
+        uncertainty_updates='velocity_uncertainty.npz（后验样本标准差）',
+    )
+    result['protocol'] = protocol
+    result['velovi_input'] = 'ms_mu_normalized'
+    try:
+        (folder / 'velovi_protocol.json').write_text(
+            json.dumps(protocol, ensure_ascii=False, indent=2, default=str), encoding='utf-8')
+    except Exception as exc:
+        log('veloVI 协议审计文件写入失败：' + repr(exc))
+    if protocol['converged']:
+        result['caveats'].append(
+            '本次训练跑满了 max_epochs=%d；这只说明优化没有提前停止，不等于已经收敛。' % max_epochs)
+    else:
+        result['caveats'].append(
+            '本次训练到第 %s 轮就停下了（max_epochs=%d），未收敛；速度数值只作探索。'
+            % (epochs_ran, max_epochs))
+
     try:
         model.save(str(folder / 'velovi_model'), overwrite=True)
         result['evidence'].append('veloVI 模型检查点：velovi_model/')
@@ -1101,31 +1301,97 @@ def _velovi(a, config, record, log, folder, result):
         '训练轮数有限（本次 max_epochs=%d），未做收敛性评估；真实数据建议增加到收敛或看损失曲线。' % max_epochs,
         '潜在时间同样是模型内部尺度，不是真实小时数；候选基因是描述性排序，不证明因果。',
     ]
-    result['evidence'].append('veloVI（scvi-tools %s，%s）' % (
+    result['evidence'].append('veloVI（scvi-tools %s，%s；输入层 Ms/Mu）' % (
         getattr(scvi, '__version__', 'unknown'), accelerator))
     log('veloVI 完成：速度矩阵 + 潜在时间' + ('+ 不确定性' if uncertainty is not None else ''))
     return a, dict(n_hvg=int(a.n_vars), n_latent=n_latent, max_epochs=max_epochs,
-                   accelerator=accelerator, device=device.device)
+                   accelerator=accelerator, device=device.device,
+                   input_layers=['Ms', 'Mu'], velovi_input='ms_mu_normalized',
+                   epochs_ran=epochs_ran, elbo_train_final=elbo)
 
 
-def _regvelo_prep(a, config, seed, record, log):
+def _regvelo_prep(a, config, seed, record, log, decl=None):
+    """RegVelo 预处理：显式过滤 + 归一化 + log1p + **真正使用 n_top_genes** + moments。
+
+    F20：旧实现没有用 n_top_genes，基因数是上游 preprocess_data 自己再筛的，
+    报告里“用了多少个基因”无法解释。这里把请求值、实际值、过滤链全部记审计。
+    """
     import scanpy as sc
     import scvelo as scv
+    require_counts(decl, ('spliced', 'unspliced'), 'RegVelo')
+    n_before = int(a.n_vars)
     record('scvelo.pp.filter_genes', scv.pp.filter_genes, min_shared_counts=config['min_shared_counts'])
     scv.pp.filter_genes(a, min_shared_counts=config['min_shared_counts'])
+    declare_step(decl, 'filter_genes', min_shared_counts=int(config['min_shared_counts']),
+                 n_genes_before=n_before, n_genes_after=int(a.n_vars))
     record('scvelo.pp.normalize_per_cell', scv.pp.normalize_per_cell,
            counts_per_cell_after=1e4, layers=['spliced', 'unspliced'], enforce=True)
     scv.pp.normalize_per_cell(a, counts_per_cell_after=1e4, layers=['spliced', 'unspliced'], enforce=True)
+    declare_step(decl, 'normalize_per_cell', target_sum=1e4, layers=['X', 'spliced', 'unspliced'])
     sc.pp.log1p(a)
+    declare_step(decl, 'log1p', matrix='X')
+    requested_top = int(config['n_top_genes'])
+    n_top = int(min(requested_top, a.n_vars))
+    a, n_top = select_hvg(a, config, record, log, effective_scale(decl, 'X'), decl)
+    if decl is not None and decl.get('steps'):
+        decl['steps'][-1].update(n_top_genes_requested=requested_top, n_top_genes_used=n_top,
+                                 n_genes_after=int(a.n_vars))
+    if a.n_vars < 10:
+        raise ValueError('RegVelo 高变基因过滤后不足 10 个基因；请调大 n_top_genes 或检查数据')
     n_pcs = int(min(config['n_pcs'], a.n_vars - 1, a.n_obs - 1))
     sc.pp.pca(a, n_comps=n_pcs, random_state=seed)
     k = int(min(config['n_neighbors'], a.n_obs - 1))
     sc.pp.neighbors(a, n_neighbors=k, n_pcs=n_pcs, random_state=seed)
+    if config.get('use_umap') and a.n_obs >= 50:
+        sc.tl.umap(a, random_state=seed)
     scv.pp.moments(a, n_pcs=None, n_neighbors=None)
-    return a
+    declare_step(decl, 'moments', produces=['Ms', 'Mu'])
+    audit = dict(n_genes_after_preprocess=int(a.n_vars), n_genes_at_entry=n_before,
+                 min_shared_counts=int(config['min_shared_counts']),
+                 n_top_genes_requested=requested_top, n_top_genes_used=n_top,
+                 n_pcs=n_pcs, n_neighbors=k,
+                 preprocessing='scvelo.pp.filter_genes → normalize_per_cell(1e4, 含 S/U) → log1p(X) '
+                               '→ highly_variable_genes(seurat) → moments(Ms/Mu)')
+    log(f'RegVelo 预处理：基因 {n_before} → {audit["n_genes_after_preprocess"]}'
+        f'（n_top_genes 请求 {requested_top}，实际使用 {n_top}）')
+    return a, audit
 
 
-def _regvelo(a, config, folder, log):
+def _regvelo_velocity(a, folder, result):
+    """把 RegVelo 的速度层写成统一产物；没有速度就报错，绝不伪造。"""
+    if 'velocity' not in a.layers:
+        raise ValueError('RegVelo 训练完成但没有 layers["velocity"]（官方 set_output 未写回速度）；'
+                         '本程序不会用别的模型或空矩阵冒充速度结果。请查看 run.log 与模型检查点。')
+    raw = a.layers['velocity']
+    velocity = np.asarray(raw.toarray() if sparse.issparse(raw) else raw, dtype=float)
+    if velocity.ndim != 2 or velocity.shape[1] != a.n_vars:
+        raise ValueError(f'RegVelo 速度矩阵形状不符：{velocity.shape} vs ({a.n_obs}, {a.n_vars})')
+    finite = np.isfinite(velocity).all(0) & (np.linalg.norm(np.nan_to_num(velocity), axis=0) > 0)
+    if int(finite.sum()) < 2:
+        raise ValueError('RegVelo 速度矩阵有效基因少于 2 个；不发布不可解释的结果')
+    if not finite.all():
+        result['caveats'].append(f'{int((~finite).sum())} 个基因速度非有限/全零，已在基因表标注。')
+    np.savez_compressed(folder / 'velocity.npz', velocity=velocity,
+                        cells=np.asarray(a.obs_names, dtype=str),
+                        genes=np.asarray(a.var_names, dtype=str))
+    return velocity
+
+
+def _regvelo_gene_table(a, velocity):
+    """候选基因表：有官方拟合参数就用参数，否则用速度绝对值均值（都是描述性）。"""
+    columns = [c for c in ('fit_likelihood', 'fit_alpha', 'fit_beta', 'fit_gamma',
+                           'fit_t_', 'fit_scaling') if c in a.var]
+    if columns:
+        table = a.var[columns].replace([np.inf, -np.inf], np.nan).copy()
+        table.insert(0, 'gene', table.index.astype(str))
+        return json.loads(table.head(30).to_json(orient='records'))
+    mean_abs = np.nanmean(np.abs(velocity), axis=0)
+    order = np.argsort(mean_abs)[::-1][:30]
+    return [dict(gene=str(a.var_names[i]), mean_abs_velocity=float(mean_abs[i]))
+            for i in order if np.isfinite(mean_abs[i])]
+
+
+def _regvelo(a, config, folder, log, decl=None, prep_audit=None):
     import importlib.metadata
     import pandas as pd
     import regvelo as rgv
@@ -1136,6 +1402,9 @@ def _regvelo(a, config, folder, log):
     scvi.settings.seed = config['seed']
     torch.set_num_threads(1)
     torch.use_deterministic_algorithms(True, warn_only=True)
+    # F20：设备在训练前解析并记录真实值（旧实现把 device 写死成 'cpu'）
+    dev = device_mod.resolve(config.get('device', 'auto'))
+    accelerator = 'gpu' if dev.device == 'cuda' else 'cpu'
     grn = pd.read_csv(config['grn_path'], index_col=0)
     if grn.index.has_duplicates or grn.columns.has_duplicates or not np.isin(grn.to_numpy(), [0, 1]).all():
         raise ValueError('GRN 必须为 TF 行 × target 列的唯一基因 ID 二元矩阵')
@@ -1158,24 +1427,34 @@ def _regvelo(a, config, folder, log):
     W = torch.tensor(np.asarray(a2.uns['skeleton']).T, dtype=torch.int)
     rgv.REGVELOVI.setup_anndata(a2, spliced_layer='Ms', unspliced_layer='Mu')
     model = rgv.REGVELOVI(a2, W=W, regulators=tf)
-    # 训练设备跟随用户设置：有 CUDA 就用 GPU，否则 CPU（不再写死）
-    _dev = device_mod.resolve(config.get('device', 'auto'))
-    _accel = 'gpu' if _dev.device == 'cuda' else 'cpu'
-    log(f'RegVelo 训练设备：{_dev.device}（accelerator={_accel}）')
-    model.train(max_epochs=config['max_epochs'], accelerator=_accel, devices=1)
+    log(f'RegVelo 训练设备：{dev.device}（accelerator={accelerator}）')
+    declare_step(decl, 'regvelo_train', device=dev.device, accelerator=accelerator,
+                 max_epochs=int(config['max_epochs']), grn_coverage=round(float(coverage), 4),
+                 n_regulators=int(len(tf)), n_genes=int(a2.n_vars))
+    model.train(max_epochs=config['max_epochs'], accelerator=accelerator, devices=1)
     model.save(str(folder / 'regvelo_model'), overwrite=False, save_anndata=True)
     if not hasattr(rgv, 'tl') or not hasattr(rgv.tl, 'set_output'):
         raise ValueError('RegVelo 结果写回接口不匹配；模型检查点已保留')
     rgv.tl.set_output(a2, model, n_samples=30, batch_size=min(128, a2.n_obs))
     a2.obs['cellflow_regvelo_time'] = model.compute_shared_time(np.asarray(a2.layers['latent_time_velovi']).copy())
-    (folder / 'regvelo_calls.json').write_text(json.dumps(dict(
+    audit = dict(
         version='0.4.2', setup_layers=['Ms', 'Mu'], prior_input_orientation='TF x target',
-        model_W_orientation='target x TF', device='cpu', max_epochs=config['max_epochs'],
-        train_signature=str(inspect.signature(model.train)), posterior_samples=30,
-        batch_size=min(128, a2.n_obs), grn_source=config['grn_source']), ensure_ascii=False, indent=2),
-        encoding='utf-8')
+        model_W_orientation='target x TF', device=dev.device, accelerator=accelerator,
+        device_requested=dev.requested, device_reason=dev.reason,
+        max_epochs=int(config['max_epochs']), train_signature=str(inspect.signature(model.train)),
+        posterior_samples=30, batch_size=min(128, a2.n_obs), grn_source=config['grn_source'],
+        grn_coverage=round(float(coverage), 4), n_regulators=int(len(tf)),
+        n_genes_after_preprocess=int(a2.n_vars),
+        n_top_genes_used=(prep_audit or {}).get('n_top_genes_used'),
+        n_top_genes_requested=(prep_audit or {}).get('n_top_genes_requested'),
+        velocity_layer_written=bool('velocity' in a2.layers),
+        regulatory_edges='not_inferred（官方 inferred_grn 在 0.4.2 里写死 cuda:0，CPU 分支不调用）',
+        verified='未在本机真实训练验证（环境缺失）；本条目保持 experimental',
+    )
+    (folder / 'regvelo_calls.json').write_text(
+        json.dumps(audit, ensure_ascii=False, indent=2, default=str), encoding='utf-8')
     a2.uns['cellflow_regulatory_interpretation'] = (
-        'CPU adapter does not infer GRN edges: official inferred_grn in 0.4.2 hardcodes cuda:0; '
+        'RegVelo 0.4.2 adapter does not infer GRN edges on CPU: official inferred_grn hardcodes cuda:0; '
         'no causal edge claims.')
-    log('RegVelo 训练完成；调控关系解释仍需独立验证')
-    return a2
+    log('RegVelo 训练完成；调控关系解释仍需独立验证（本次不输出调控边）')
+    return a2, audit

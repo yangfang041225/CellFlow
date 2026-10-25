@@ -66,6 +66,9 @@ class Method:
     gpu_note: str = 'CPU 可运行'
     data_limit: str = ''
     needs_resource: str = 'medium'  # light / medium / heavy（用于 16GB 内存提示）
+    maturity: str = 'stable'        # stable / experimental：experimental 永不显示为“可运行”
+    input_protocol: str = ''        # 输入契约（层/尺度/前提），逐条写清“喂给模型的是什么”
+    output_protocol: str = ''       # 实际写出的产物（必须与适配器一致，未验证不得写满）
 
 
 METHODS = [
@@ -171,10 +174,17 @@ METHODS = [
            '实验接入：GRN 来源/物种/方向/基因映射需人工核查；推断边不是验证过的因果关系。',
            'https://regvelo.readthedocs.io/en/latest/getting_started.html',
            runtime_env='.venv-regvelo',
-           outputs=('速度与模型内部相对时间',),
+           outputs=('速度与模型内部相对时间', '基因空间速度矩阵（velocity.npz）',
+                    '候选基因表（描述性）', '结果对象与二维展示坐标'),
            optional=('细胞分组',),
            gpu_note='官方实现部分函数写死 CUDA；本机 CPU 不调用该函数，因此**不输出调控边**',
-           data_limit='限定 0.4.2；预处理后 10–3000 基因', needs_resource='heavy'),
+           data_limit='限定 0.4.2；预处理后 10–3000 基因；本机未安装环境、未真实训练，结果不可信',
+           needs_resource='heavy',
+           maturity='experimental',
+           input_protocol='原始 S/U 计数 → filter_genes → normalize_per_cell(1e4) → log1p(X) → '
+                          'HVG(n_top_genes) → moments(Ms/Mu)；训练输入 Ms/Mu；先验 GRN 为 TF×target 0/1',
+           output_protocol='velocity.npz（速度）+ 相对时间 + 候选基因表；**不写调控边**'
+                           '（0.4.2 的 inferred_grn 写死 cuda:0）；设备取实际解析结果，不再写死 cpu'),
 
     Method('velovi', 'veloVI · 变分速度与不确定性', 'scvi-tools VELOVI', 'velocity',
            ('raw_SU',), ('scvi-tools',), True,
@@ -186,7 +196,13 @@ METHODS = [
                     '二维速度箭头投影', '速度一致性诊断', '候选高速度基因', '训练好的模型检查点'),
            optional=('细胞分组',),
            gpu_note='CPU 可训练（慢）；有 NVIDIA 时可切 GPU，本程序按设备设置自动选择',
-           data_limit='需要 raw spliced/unspliced；训练轮数需足够才收敛', needs_resource='heavy'),
+           data_limit='输入必须是原始 S/U 计数（程序自己归一化/平滑）；训练轮数需足够才收敛',
+           needs_resource='heavy',
+           input_protocol='原始 S/U 计数 → filter_genes → normalize_per_cell(1e4, 含 S/U) → log1p(X) → '
+                          'HVG → moments → 用 layers["Ms"]/["Mu"] 训练'
+                          '（scvi-tools 1.2.0 的 is_count_data=False，官方教程即用 Ms/Mu）',
+           output_protocol='velocity.npz + velocity_uncertainty.npz + latent_time.npz + velovi_model/ '
+                           '+ velovi_protocol.json（输入层与训练审计）'),
 
     Method('deepvelo', 'DeepVelo · 细胞相关动力学', 'DeepVelo (bowang-lab)', 'velocity',
            ('raw_SU',), ('deepvelo', 'dgl'), False,
@@ -293,14 +309,33 @@ def isolated_ready(method_or_key):
 
 
 def status_of(method, versions=None):
-    """三元状态：可运行 / 实验接入 / 尚未接入（按本机实际安装情况判定）。"""
+    """三元状态：可运行 / 实验接入 / 尚未接入（按本机实际安装情况判定）。
+
+    F20：`maturity == 'experimental'` 的方法**永远**返回 experimental——
+    因为“装了包”不等于“在本机真实训练验证过”（RegVelo 就是这种情况）。
+    """
     if not method.implemented:
         return 'planned'
+    if getattr(method, 'maturity', 'stable') == 'experimental':
+        return 'experimental'
     versions = installed(method.packages) if versions is None else versions
     if any(v is None for v in versions.values()):
         # 包在主环境里没有，但可能装在隔离环境里
         return 'ready' if isolated_ready(method) else 'experimental'
     return 'ready'
+
+
+def status_note(method, status=None):
+    """给界面/报告的一句话状态说明：状态标签 + 该方法的接入成熟度。"""
+    status = status or status_of(method)
+    label = STATUS_LABELS[status][0]
+    if getattr(method, 'maturity', 'stable') == 'experimental':
+        return label + '：适配器已写好但未在本机真实训练验证，结果需逐项复核，不能当作成熟可运行'
+    if status == 'planned':
+        return label + '：只有注册与说明，没有可调用代码'
+    if status == 'experimental':
+        return label + '：隔离环境未就绪或依赖缺失'
+    return label + '：适配器与本机依赖齐全（真实数据有效性仍需自行核查）'
 
 
 def family_label(method):
@@ -358,6 +393,10 @@ def eligibility(facts, config, check_environment=True):
             'status': status,
             'status_label': STATUS_LABELS[status][0],
             'status_kind': STATUS_LABELS[status][1],
+            'status_note': status_note(method, status),
+            'maturity': getattr(method, 'maturity', 'stable'),
+            'input_protocol': method.input_protocol,
+            'output_protocol': method.output_protocol,
             'needs_text': [NEEDS.get(n, (n, ''))[0] for n in method.needs],
             'scientific_blockers': scientific,
             'runtime_blockers': runtime,

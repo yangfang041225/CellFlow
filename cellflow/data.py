@@ -183,8 +183,11 @@ def _size_text(num):
     return f'{num:.1f} TB'
 
 
-def inspect(data, path=None, mt_prefix='MT-'):
-    """生成给人看的“数据体检报告”。不修改数据，不做任何过滤。"""
+def inspect(data, path=None, mt_prefix='MT-', config=None):
+    """生成给人看的“数据体检报告”。不修改数据，不做任何过滤。
+
+    `config` 给了就把「输入层/尺度声明」一并带上（写入 format.json，供复现报告引用）。
+    """
     n, g = data.X.shape
     mats = {'X': summary(data.X), **{k: summary(v) for k, v in data.layers.items()}}
     detail = {}
@@ -262,6 +265,7 @@ def inspect(data, path=None, mt_prefix='MT-'):
         'splice': splice,
         'x_kind': kind,
         'x_kind_text': X_KIND_TEXT[kind],
+        'preprocessing': declaration(data, config or {}),
         'synthetic': bool(data.synthetic),
         'warnings': [],
         'suggestions': {},
@@ -371,6 +375,147 @@ X_KIND_TEXT = {
 }
 
 
+# ---------------------------------------------------------------- 输入层 / 尺度声明（F19）
+# 问题（审计 F19）：用“整数外观 = 原始计数”“max<30 = 已经取过对数”直接决定要不要改数值，
+# 不能区分 TPM、低表达归一化、对数化等状态；而且 auto 与单独 scVelo 的处理路径不一致。
+# 处理办法：把「用户声明」「数值观察」「有效结论」「实际做过的每一步变换」分成四块记录，
+# 只有声明与观察一致为 counts 时才允许再做归一化/取对数；判定不了就记 unknown，
+# 并且**不做任何会改变数值的操作**（读取/降维这类不改变语义的计算仍然允许）。
+PREPROCESSING_PROTOCOL = 'cellflow-preprocessing-1'
+SCALE_MODES = ('counts', 'normalized', 'log', 'scaled', 'unknown')
+SCALE_TEXT = {
+    'counts': '原始计数',
+    'normalized': '线性归一化（如 TPM/CP10k，未取对数）',
+    'log': '已取对数',
+    'scaled': '已中心化/缩放（含负值或单位方差）',
+    'unknown': '无法判定',
+}
+
+
+def scale_report(matrix, info=None):
+    """观察矩阵处在什么尺度，并**同时**给出可靠度与依据。
+
+    结论只用于记录与准入，不直接驱动“要不要归一化/取对数”这类改数值的操作；
+    那个决定在 `declaration()` 里按“声明 + 观察”一起做。
+    """
+    info = info or summary(matrix)
+    v = values(matrix)
+    total = int(matrix.shape[0] * matrix.shape[1])
+    evidence = dict(shape=list(matrix.shape), integer_like=bool(info['integer_like']),
+                    finite=bool(info['finite']), nonnegative=bool(info['nonnegative']),
+                    nonzero=int(info['nonzero']),
+                    nonzero_pct=float(100.0 * info['nonzero'] / max(total, 1)),
+                    min=None, max=None, mean_nonzero=None)
+    if v.size:
+        numeric = v[np.isfinite(v)] if np.isfinite(v).any() else v
+        if numeric.size:
+            evidence['min'] = float(np.min(numeric))
+            evidence['max'] = float(np.max(numeric))
+            evidence['mean_nonzero'] = float(np.mean(numeric))
+    if not info['nonzero'] or v.size == 0:
+        return dict(scale='unknown', confidence='none',
+                    basis='全零或读不到非零值，无法判断尺度', evidence=evidence)
+    if not info['finite']:
+        return dict(scale='unknown', confidence='none',
+                    basis='含 NaN/Inf，必须先修复数据才能判断尺度', evidence=evidence)
+    if evidence['min'] is not None and evidence['min'] < 0:
+        return dict(scale='scaled', confidence='medium',
+                    basis='含负值：只可能来自中心化/标准化（例如 z-score）之类的缩放',
+                    evidence=evidence)
+    if info['integer_like']:
+        return dict(scale='counts', confidence='medium',
+                    basis='全部非负且为整数外观；但整数外观也可能来自上游取整，不能证明它来自计数文库',
+                    evidence=evidence)
+    if evidence['max'] is not None and evidence['max'] < 30:
+        return dict(scale='log', confidence='medium',
+                    basis='非整数且最大值 < 30：像 log1p 之后的表达；也可能是深度很低、尚未取对数的线性归一化值',
+                    evidence=evidence)
+    return dict(scale='normalized', confidence='low',
+                basis='非整数且最大值 ≥ 30：像线性归一化（TPM/CP10k）；也可能只是别的人为缩放，二者无法区分',
+                evidence=evidence)
+
+
+def _declared_scale(name, config):
+    """用户在这一页能给出的全部显式声明（目前只有两个勾选项）。"""
+    if name == 'X':
+        if config.get('raw_x_confirmed'):
+            return 'counts', '数据页勾选“X 是未归一化原始计数”（raw_x_confirmed=True）'
+        return 'unknown', '未声明 X 的处理史（raw_x_confirmed=False/空）'
+    if config.get('raw_su_confirmed'):
+        return 'counts', '数据页勾选“剪接层是原始计数”（raw_su_confirmed=True）'
+    return 'unknown', f'未声明 {name} 的处理史（raw_su_confirmed=False/空）'
+
+
+def declaration(data, config):
+    """输入层 / 尺度声明：声明 + 观察 + 有效结论 + 已执行变换（F19 的唯一入口）。
+
+    有效结论（effective）只有三种会改变后续行为：
+      counts → 允许再归一化 + 取对数（因为声明与观察一致）
+      log    → 原样使用，不再归一化、不再取对数（非破坏性）
+      unknown→ 一律不做改数值的预处理；方法若必须要 counts，则直接报错而不是猜
+    """
+    config = config or {}
+    names = ['X'] + [key for key in data.layers]
+    matrices = {'X': data.X, **{key: data.layers[key] for key in data.layers}}
+    observations, declared, declared_basis, effective, notes, conflicts = {}, {}, {}, {}, [], []
+    for name in names:
+        info = summary(matrices[name])
+        observations[name] = scale_report(matrices[name], info)
+        scale, basis = _declared_scale(name, config)
+        declared[name] = scale
+        declared_basis[name] = basis
+        observed = observations[name]['scale']
+        if scale == 'counts':
+            if observed == 'counts':
+                effective[name] = 'counts'
+                notes.append(f'{name}：声明与观察一致，按原始计数处理（可再做归一化/取对数）')
+            else:
+                effective[name] = 'unknown'
+                conflicts.append(
+                    f'{name}：声明为原始计数，但数值观察更像「{SCALE_TEXT[observed]}」'
+                    f'（{observations[name]["basis"]}）。程序不会据此做归一化/取对数，按 unknown 处理')
+        elif observed == 'log' and observations[name]['confidence'] in ('high', 'medium'):
+            effective[name] = 'log'
+            notes.append(f'{name}：未声明，观察为非整数且最大值 < 30，按“已取过对数”原样使用'
+                         '（不做任何改数值的操作）')
+        else:
+            effective[name] = 'unknown'
+            notes.append(f'{name}：未声明且不能可靠判定（观察倾向「{SCALE_TEXT.get(observed, observed)}」）；'
+                         '本次不做任何改数值的预处理')
+    return dict(
+        protocol=PREPROCESSING_PROTOCOL,
+        rule='only_counts_may_be_renormalized',
+        declared=declared, declared_basis=declared_basis,
+        observed={name: observations[name]['scale'] for name in names},
+        observations=observations,
+        effective=effective,
+        notes=notes, conflicts=conflicts,
+        layers_present=[key for key in data.layers],
+        steps=[],
+        n_cells=int(data.X.shape[0]), n_genes=int(data.X.shape[1]),
+    )
+
+
+def effective_scale(decl, name):
+    """从 declaration() 的结果里取某个矩阵的有效尺度；没有声明时一律 unknown。"""
+    return ((decl or {}).get('effective') or {}).get(name, 'unknown')
+
+
+def require_protocol_scale(decl, names, who):
+    """需要“原始计数”的方法先过这一关：判定不了就报错，不猜、不静默降级。"""
+    bad = [name for name in names if effective_scale(decl, name) != 'counts']
+    if not bad:
+        return
+    detail = []
+    for name in bad:
+        info = ((decl or {}).get('observations') or {}).get(name) or {}
+        detail.append(f'{name}=unknown（观察倾向：{info.get("scale", "无法判断")}；{info.get("basis", "")}）')
+    raise ValueError(
+        f'{who} 需要原始计数输入，但以下层的尺度无法确认为 counts：' + '；'.join(detail) +
+        '。请在数据页确认“剪接层是原始计数”，或提供未归一化的 S/U 计数；'
+        '程序不会在无法判定时继续做归一化/对数变换。')
+
+
 def validate(data, config):
     errors, warnings = [], []
     if len(data.X.shape) != 2:
@@ -400,6 +545,15 @@ def validate(data, config):
     if n_entries > MAX_ENTRIES:
         errors.append(f'矩阵有 {n_entries / 10 ** 6:.0f} 百万个元素，超过上限 {MAX_ENTRIES // 10 ** 6} 百万')
     kind = x_kind(data.X, matrices['X'])
+    decl = declaration(data, config)
+    warnings.extend(decl['conflicts'])
+    for name, scale in decl['effective'].items():
+        if scale == 'unknown' and name in ('spliced', 'unspliced'):
+            warnings.append(f'{name} 的尺度无法判定为原始计数：需要 counts 的 velocity 方法不会运行'
+                            '（普通表达矩阵不能补出剪接层）')
+    facts_scale = {}
+    for name, scale in decl['effective'].items():
+        facts_scale[name] = scale
     raw_x = bool(config.get('raw_x_confirmed') and matrices['X']['integer_like'])
     if config.get('raw_x_confirmed') and not matrices['X']['integer_like']:
         warnings.append('你勾选了“X 为原始计数”，但矩阵不是整数外观：'
@@ -410,7 +564,8 @@ def validate(data, config):
         warnings.append('X 看起来已经取过对数（数值小且非整数）：'
                         '程序不会再次归一化或取对数，直接用它做特征选择与降维')
     if kind == 'scaled':
-        warnings.append('X 不是整数且数值较大：像是已缩放到人为总量，程序只会取对数，不再缩放')
+        warnings.append('X 不是整数且数值较大：可能是线性归一化（如 TPM）或已缩放；'
+                        '程序不会替你决定是否取对数，按 unknown 处理')
     su = all(k in matrices and matrices[k]['integer_like'] and matrices[k]['nonzero'] > 0
              for k in ('spliced', 'unspliced'))
     velocity = bool(su and config.get('raw_su_confirmed'))
@@ -453,6 +608,8 @@ def validate(data, config):
                 has_atac=bool(any('atac' in str(k).lower() for k in obs_keys) or 'atac' in str(data.extras).lower()),
                 protocol_known=bool(velocity),
                 x_kind=kind, x_kind_text=X_KIND_TEXT[kind],
+                effective_scale=facts_scale,
+                preprocessing=decl,
                 obs_keys=obs_keys, cells_hash=ids_hash(data.cells), genes_hash=ids_hash(data.genes))
 
 

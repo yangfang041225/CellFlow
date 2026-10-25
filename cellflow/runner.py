@@ -314,7 +314,8 @@ def run(input_path, config, folder):
             fmt = inspect(data, local, c['mt_prefix'])
             dump_json(folder / 'format.json', fmt)
             provenance.update(input_format=fmt['file']['suffix'], n_cells=facts['n_cells'],
-                              n_genes=facts['n_genes'], layers=fmt['layers_present'])
+                              n_genes=facts['n_genes'], layers=fmt['layers_present'],
+                              preprocessing=fmt.get('preprocessing'))
             stage = 'eligibility'
             _progress(folder, provenance, stage)
             gates = eligibility(facts, c)
