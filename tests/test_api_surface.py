@@ -30,6 +30,8 @@ class ApiSurface(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.client = TestClient(api.app)
+        from tests.fixtures import ensure_completed_run
+        ensure_completed_run()
         cls.routes = []
         for route in api.app.routes:
             methods = getattr(route, 'methods', None)

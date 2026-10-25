@@ -15,6 +15,8 @@ class JobsMeta(unittest.TestCase):
     def setUpClass(cls):
         from cellflow import api
         cls.client = TestClient(api.app)
+        from tests.fixtures import ensure_completed_run
+        ensure_completed_run()
 
     def test_display_name_is_human_readable(self):
         from cellflow.queue import list_jobs, submit

@@ -22,6 +22,13 @@ class Docs(unittest.TestCase):
             self.assertIn(item['term'], text)
             self.assertIn(item['zh'], text)
 
+    def test_no_duplicate_top_level_definitions(self):
+        proc = subprocess.run([sys.executable, 'tools/check_duplicates.py'],
+                              cwd=str(ROOT), capture_output=True, text=True,
+                              encoding='utf-8', timeout=120)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn('NO_DUPLICATE_DEFINITIONS', proc.stdout)
+
 
 if __name__ == '__main__':
     unittest.main()

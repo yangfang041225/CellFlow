@@ -15,6 +15,8 @@ class ReviewFixes(unittest.TestCase):
     def setUpClass(cls):
         from cellflow import api
         cls.client = TestClient(api.app)
+        from tests.fixtures import ensure_completed_run
+        ensure_completed_run()
         cls.tmp = tempfile.TemporaryDirectory()
 
     @classmethod
