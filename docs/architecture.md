@@ -6,8 +6,8 @@
 
 ```
 CellFlow/
-├─ app.py                  Streamlit 回退界面（迁移期保留）
-├─ cellflow_app.pyw        Windows 桌面入口（单实例锁 → 启动 API → Qt 原生窗口）
+├─ app.py                  Streamlit 回退界面（非默认入口，迁移期保留）
+├─ cellflow_app.pyw        Windows 桌面入口（默认入口；单实例锁 → 启动 API → Qt 原生窗口）
 ├─ cellflow/
 │  ├─ api.py               FastAPI：本机 HTTP 接口（127.0.0.1:8600）
 │  ├─ desktop.py           单实例锁、窗口唤回、Python 解释器检查

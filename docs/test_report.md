@@ -45,6 +45,18 @@
 
 > 运行时长在不同负载下波动（84–140 s）；`tests/__init__.py` 把 BLAS/Numba 线程限制为 1（与生产一致），避免 numba 并行 lowering 在 Windows 上偶发数分钟卡住。veloVI 测试需要 `.venv-velovi` 已安装，否则会被跳过。
 
+2026-10-25 新增 `tests/test_install_checks.py`（13 项，F34），单独命令：
+
+```powershell
+python -m unittest tests.test_install_checks -v
+```
+
+结果：**Ran 13 tests — OK**（本机 2026-10-25 20:29）。它用临时假环境验证 not ready/ready，不重装、不联网。
+上表的 143 项**不包含**这 13 项；本次未重跑全量，所以“143 + 13”的总数没有重新确认。
+
+`python install.py --check` 也已升级为真实 import + 版本检查（F34）：缺失/版本不符/隔离环境损坏会判 `not_ready`，
+并输出 `MANIFEST_JSON`。字段与复现输入见 [install_manifest.md](install_manifest.md)。
+
 ## 3. 前端构建
 
 ```powershell
@@ -106,10 +118,20 @@ npm run build        # ✓ built in ~6 s；有 >500 kB chunk 警告
 4. 大文件（>1 GB）上传与长时间运行的内存曲线。
 5. CELLxGENE 大文件真实下载（接口已实测可达；>100 MB 的下载未实测）。
 6. GPU/CUDA 路径（本机无 NVIDIA GPU）。
+7. **GitHub Actions 上的 CI 未实际运行**：`.github/workflows/ci.yml` 只在本机做静态检查与命令核对，
+   没有在 GitHub 托管 runner 上跑过；首次 push 后才能知道是否全绿。
 
-## 6. 已知测试局限
+## 6. 已知测试局限（未消除）
 
+- **仍有测试依赖 `results/` 下的历史任务**。审计报告记为 7 项，本次未重跑全量确认具体数量；
+  涉及 `tests/test_api_surface.py`（无已完成任务 → skip）、`tests/test_jobs_meta.py`（无任务/少于两个任务/无数据集/无引用 → skip）、
+  `tests/test_review_fixes.py`、`tests/test_terms.py`。在**全新克隆（没有 results/）**上这些用例会 skip，不会被当作通过。
+  后续应改为临时生成 fixture；本轮没有消除该依赖，也没有放宽断言。
 - `test_ui_smoke` 验证的是 **Streamlit 回退界面**；React 界面由构建、截图与人工点击验证，没有 DOM 级自动化。
-- `test_velovi_*` 依赖隔离环境，未安装时跳过（不算通过）。
+- `test_velovi_*` 依赖隔离环境 `.venv-velovi`，未安装时跳过（不算通过）；CI 不创建该环境，所以 CI 里会跳过。
 - 桌面测试验证锁、进程与端口，不验证窗口像素级渲染。
-- 没有 CI；所有测试均在当前机器手动执行。
+- **CI 依赖并非全部来自 `requirements.txt`**：`pypdf` 只被 PDF 断言使用，产品运行不需要，未列入 requirements；
+  CI 显式安装 `pypdf==6.21.2`。`requirements-cellrank.txt` 也需要额外安装才能覆盖 CellRank 测试。
+  这是“CI 与 requirements 一致”尚未完全收口的地方，已按现状记录，不假装已解决。
+- CI 使用 `.venv`（由 workflow 创建）运行测试，因此 `test_desktop.py::InstallCheck` 的 `install.py --check` 能真实执行；
+  但 `.venv-velovi` / `.venv-regvelo` 不在 CI 中安装，隔离环境相关测试会跳过。

@@ -6,28 +6,12 @@ on:
   pull_request:
   workflow_dispatch:
 
-jobs:
-  backend:
-    runs-on: windows-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: pip
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pypdf
-      - name: Compile check
-        run: python -m compileall -q cellflow tools install.py
-      - name: Docs links
-        run: python tools/check_docs_links.py
-      - name: Unit tests
-        run: python -m unittest discover -s tests -v
+permissions:
+  contents: read
 
+jobs:
+  # 前端单独构建，并把 web/dist 作为 artifact 传给后端；
+  # 后端的 install.py --check 需要 web/dist/index.html 才算 ready。
   frontend:
     runs-on: windows-latest
     timeout-minutes: 30
@@ -44,3 +28,58 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+          retention-days: 3
+
+  backend:
+    needs: frontend
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-cellrank.txt
+
+      # 按仓库的 requirements 建 .venv（与用户路径一致），而不是只装在系统 Python。
+      - name: Create project venv
+        run: python -m venv .venv
+
+      - name: Install runtime + test dependencies
+        run: |
+          .venv\Scripts\python.exe -m pip install --upgrade pip
+          .venv\Scripts\python.exe -m pip install -r requirements.txt -r requirements-cellrank.txt
+          # pypdf 只用于 PDF 断言，产品运行不需要，未列入 requirements.txt；故在此显式安装并固定版本。
+          .venv\Scripts\python.exe -m pip install "pypdf==6.21.2"
+
+      - name: Dependency consistency
+        run: .venv\Scripts\python.exe -m pip check
+
+      - name: Compile check
+        run: .venv\Scripts\python.exe -m compileall -q cellflow tools install.py
+
+      - name: Docs links
+        run: .venv\Scripts\python.exe tools\check_docs_links.py
+
+      # F34：真实 import + 版本 + manifest；隔离环境缺失只提示，不阻塞核心。
+      - name: Install health check
+        run: .venv\Scripts\python.exe install.py --check
+
+      # F34：临时假环境下的 not ready/ready 判定（不重装、不联网）。
+      - name: Install check tests
+        run: .venv\Scripts\python.exe -m unittest tests.test_install_checks -v
+
+      - name: Unit tests
+        run: .venv\Scripts\python.exe -m unittest discover -s tests -v

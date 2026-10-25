@@ -1,5 +1,8 @@
 # CellFlow：架构与 MVP 范围
 
+> 注（2026-10-25）：本文是早期 MVP 规划稿，“Streamlit 界面”指的是当时的回退入口。
+> 当前**唯一默认入口**是 Qt 原生窗口（`cellflow_app.pyw` + `web/` 前端）；实际结构以 [architecture.md](architecture.md) 为准。
+
 目标用户：希望用中文图形界面做探索性分析、但不熟悉 Python 环境管理的研究者。
 设计优先级：**输入与方法条件说清楚 → 失败可解释 → 运行可追溯 → 不编造生物学故事**。
 
@@ -7,11 +10,12 @@
 
 ## 1. 页面与数据流
 
-页面顺序固定：**操作手册（默认首页）→ 模型介绍 → 开始分析 → 任务结果**。
+页面顺序（当前实现）：**概览 → 数据 → 模型分析 → 分析结果 → 报告**。
+（早期规划稿使用的是「操作手册 → 模型介绍 → 开始分析 → 任务结果」这一组旧名。）
 
 ```mermaid
 flowchart LR
-    U[中文 Streamlit 界面] --> V[data: 格式体检 + 科学准入]
+    U[中文界面（Qt 主入口 / Streamlit 回退）] --> V[data: 格式体检 + 科学准入]
     V --> G[registry: 方法注册表 / 三元状态]
     V --> A[advisor: 建议流程 + 资源估算]
     G --> C[用户确认参数]
@@ -21,7 +25,7 @@ flowchart LR
     S --> M[adapters: scanpy / scVelo / CellRank]
     M --> O[统一结果 schema]
     O --> F[reports: SVG 图 + A/B 中文报告]
-    O --> UI[任务结果页]
+    O --> UI[分析结果页]
     F --> Z[报告 ZIP 导出]
 ```
 
