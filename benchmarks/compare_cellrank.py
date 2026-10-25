@@ -32,6 +32,7 @@ BASE_CONFIG = {
     'root_cell': None,
     'root_reason': 'Ductal 起点仅作为探索性先验，不是谱系追踪',
     'cellrank_n_states': 5,
+    'cellrank_terminal': '',
 }
 
 TOLERANCE = 1e-6
@@ -59,7 +60,12 @@ def _worker_reference(analysis: Path, config: dict, n_states: int, cluster_key: 
     estimator = cr.estimators.GPCCA(kernel)
     estimator.compute_schur(n_components=int(min(20, a.n_obs - 2)))
     estimator.compute_macrostates(n_states=int(n_states), cluster_key=cluster_key)
-    estimator.predict_terminal_states()
+    fixed = [item.strip() for item in str(config.get('cellrank_terminal') or '').split(',')
+             if item.strip()]
+    if fixed:
+        estimator.set_terminal_states(states=fixed, cluster_key=cluster_key)
+    else:
+        estimator.predict_terminal_states()
     estimator.compute_fate_probabilities(use_petsc=False, solver='direct', n_jobs=1,
                                          backend='threading', show_progress_bar=False)
     fp = estimator.fate_probabilities
@@ -155,6 +161,7 @@ def main():
     parser.add_argument('--n-states', type=int)
     parser.add_argument('--cluster-key')
     parser.add_argument('--root-cell', default=None)
+    parser.add_argument('--terminal', default='', help='固定终末类别，逗号分隔；留空则自动识别')
     args = parser.parse_args()
     if args.worker == 'cellflow':
         config = json.loads(args.config_json.read_text(encoding='utf-8'))
@@ -168,7 +175,7 @@ def main():
     if args.output.exists():
         shutil.rmtree(args.output)
     args.output.mkdir(parents=True)
-    config = dict(BASE_CONFIG)
+    config = dict(BASE_CONFIG, cellrank_terminal=args.terminal or '')
     if args.root_cell:
         config['root_cell'] = args.root_cell
     else:
@@ -213,6 +220,7 @@ def main():
             report['candidate_terminal_states'] = candidate_names
             report['n_states'] = n_states
             report['cluster_key'] = cluster_key
+            report['terminal_mode'] = ('fixed:' + args.terminal) if args.terminal else 'auto'
     (args.output / 'compare_cellrank.json').write_text(
         json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
     print(json.dumps(report, ensure_ascii=False, indent=2))

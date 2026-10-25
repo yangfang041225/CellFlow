@@ -2,7 +2,7 @@
 
 日期：2026-10-26
 基线：PR #1 `4fcb61f`；分支 `phase2/scientific-validation`
-状态：**P0-4 完成（自动终末）；P1 仅完成短训练诊断与多种子，不声称收敛**
+状态：**P0-4 完成（自动终末 + 固定终末）；P1 仅完成短训练诊断与多种子，不声称收敛**
 
 ---
 
@@ -35,10 +35,31 @@ CellRank：`PseudotimeKernel` → `GPCCA` → `predict_terminal_states` →
 
 机器可读结果：`data/benchmarks/compare_cellrank/compare_cellrank.json`（gitignore）。
 
+### 固定终末状态对照
+
+新增配置 `cellrank_terminal`（逗号分隔的宏观状态名）。用 `--terminal Beta,Alpha`
+让 CellFlow 与官方参考都在 `compute_macrostates` 后调用
+`set_terminal_states(states=['Beta','Alpha'], cluster_key='clusters')`：
+
+| 项 | 结果 |
+|---|---|
+| 终末类别 | Beta, Alpha（双方一致） |
+| 最大绝对概率差 | **0.0** |
+| 吸收方程残差 | **4.44e-16** |
+| 细胞数 | 770 |
+| `terminal_mode` | `fixed:Beta,Alpha` |
+
+复跑：
+
+```powershell
+.venv\Scripts\python.exe -m benchmarks.compare_cellrank `
+  --subset data\benchmarks\pancreas_subset.h5ad `
+  --output data\benchmarks\compare_cellrank_fixed --terminal Beta,Alpha
+```
+
 ### 边界（必须保留）
 
-- 只验证了**自动识别终末状态**；项目书要求的“固定终末状态 vs 自动终末状态分别验证”
-  尚未完成——CellFlow 当前没有固定终末状态配置入口。
+- 自动终末与固定终末都已对照；但两者都基于同一份预处理 `analysis.h5ad`。
 - 参考与候选共享同一份预处理 `analysis.h5ad`，因此这次对照**只证明 CellRank
   计算与吸收求解一致**，不证明预处理/DPT 本身独立正确。
 - 5 个终末类别来自 GPCCA 在细胞图上的识别，**不是**生物学谱系验证。

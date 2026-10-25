@@ -484,8 +484,16 @@ def _fate_block(a, config, record, log, cluster_key, use_velocity):
     record('GPCCA.compute_macrostates', estimator.compute_macrostates,
            n_states=n_states, cluster_key=cluster_key)
     estimator.compute_macrostates(n_states=n_states, cluster_key=cluster_key)
-    record('GPCCA.predict_terminal_states', estimator.predict_terminal_states)
-    estimator.predict_terminal_states()
+    fixed = [item.strip() for item in str(config.get('cellrank_terminal') or '').split(',')
+             if item.strip()]
+    if fixed:
+        record('GPCCA.set_terminal_states', estimator.set_terminal_states,
+               states=fixed, cluster_key=cluster_key)
+        estimator.set_terminal_states(states=fixed, cluster_key=cluster_key)
+        log('使用固定终末类别：' + '、'.join(fixed))
+    else:
+        record('GPCCA.predict_terminal_states', estimator.predict_terminal_states)
+        estimator.predict_terminal_states()
     record('GPCCA.compute_fate_probabilities', estimator.compute_fate_probabilities,
            use_petsc=False, solver='direct', n_jobs=1, backend='threading',
            show_progress_bar=False)
@@ -927,8 +935,16 @@ def run_adapter(method, data, config, folder, log):
         record('GPCCA.compute_macrostates', estimator.compute_macrostates,
                n_states=n_states, cluster_key=cluster_key)
         estimator.compute_macrostates(n_states=n_states, cluster_key=cluster_key)
-        record('GPCCA.predict_terminal_states', estimator.predict_terminal_states)
-        estimator.predict_terminal_states()
+        fixed = [item.strip() for item in str(config.get('cellrank_terminal') or '').split(',')
+                 if item.strip()]
+        if fixed:
+            record('GPCCA.set_terminal_states', estimator.set_terminal_states,
+                   states=fixed, cluster_key=cluster_key)
+            estimator.set_terminal_states(states=fixed, cluster_key=cluster_key)
+            log('使用固定终末类别：' + '、'.join(fixed))
+        else:
+            record('GPCCA.predict_terminal_states', estimator.predict_terminal_states)
+            estimator.predict_terminal_states()
         record('GPCCA.compute_fate_probabilities', estimator.compute_fate_probabilities,
                use_petsc=False, solver='direct', n_jobs=1, backend='threading',
                show_progress_bar=False)
