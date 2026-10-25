@@ -110,7 +110,7 @@ class ApiSurface(unittest.TestCase):
         before = {item.name for item in inputs.glob('*')} if inputs.exists() else set()
         client = TestClient(api.app)
         with mock.patch.object(api, 'MAX_UPLOAD_BYTES', 32):
-            response = client.post('/api/datasets/upload',
+            response = client.post('/api/datasets/upload?confirm_table_semantics=true',
                                    files={'file': ('big.csv', io.BytesIO(b'a' * 200), 'text/csv')})
         self.assertEqual(response.status_code, 413)
         after = {item.name for item in inputs.glob('*')} if inputs.exists() else set()

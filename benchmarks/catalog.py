@@ -12,6 +12,8 @@ PANCREAS = {
     'citation': 'Bastidas-Ponce et al. 2019, Developmental Cell',
     'license_note': 'Public research dataset; redistributed by scVelo notebooks. Not committed to GitHub.',
     'sha256': '9e3e459eca00ba06b496ec80def32941b5b2889918720e3e7aa6ffb811fbe7c6',
+    'sha256_origin': 'project-pinned local download digest; no upstream checksum attestation',
+    'raw_count_identity': 'S/U source provenance requires upstream confirmation; dtype/nonnegative/integer-like values are insufficient',
     'bytes': 52477898,
     'expected_shape': (3696, 27998),
     'layers': ('spliced', 'unspliced'),

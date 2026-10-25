@@ -1,3 +1,5 @@
+> 独立审查更正：本文保留 Phase II 开发阶段记录，不是本轮验收结论。当前缺陷、整改和使用边界见 [独立审查摘要](independent_review.md)。
+
 # Phase II · P0-4 CellRank 与 P1 veloVI 诊断记录
 
 日期：2026-10-26

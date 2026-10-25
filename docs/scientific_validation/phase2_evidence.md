@@ -1,3 +1,5 @@
+> 独立审查更正：本文保留 Phase II 开发阶段记录，不是本轮验收结论。当前缺陷、整改和使用边界见 [独立审查摘要](independent_review.md)。
+
 # Phase II · 证据等级与报告语义（P1-4 / P1-5 / P1-6 部分）
 
 日期：2026-10-26
@@ -29,7 +31,7 @@
 测试（`tests/test_evidence_levels.py`，3 项）：
 
 - 成功任务最高只到 **L1**
-- 显式 `reference_comparison` 才允许 L2
+- 仅完整、任务绑定且实际重算通过的 scVelo 速度矩阵证据允许 L2；CellRank 对照在外部基准报告中单列，不自动升级普通任务
 - QC 运行的结果、provenance、A/B 报告都包含等级记录
 
 ---

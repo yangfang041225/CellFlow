@@ -73,6 +73,8 @@ def _worker_reference(analysis: Path, config: dict, n_states: int, cluster_key: 
     names = [str(x) for x in fp.names]
     np.savez_compressed(folder / 'reference_fate.npz', probs=probs,
                         cells=np.asarray(a.obs_names, dtype=str),
+                        terminal_labels=np.asarray([str(v) if not __import__('pandas').isna(v) else ''
+                                                    for v in estimator.terminal_states], dtype=str),
                         terminal_names=np.asarray(names, dtype=str))
     transition = kernel.transition_matrix
     import scipy.sparse as sp
@@ -101,55 +103,6 @@ def _load_candidate(folder: Path):
     return probs, names, fate
 
 
-def _compare(candidate_probs, candidate_names, reference_probs, reference_names,
-             transition_path, analysis_path):
-    import anndata as ad
-    import scipy.sparse as sp
-
-    if candidate_probs.shape[0] != reference_probs.shape[0]:
-        raise ValueError(f'细胞数不一致：{candidate_probs.shape[0]} vs {reference_probs.shape[0]}')
-    common = [name for name in candidate_names if name in reference_names]
-    exclusions = {'candidate_only': [n for n in candidate_names if n not in reference_names],
-                  'reference_only': [n for n in reference_names if n not in candidate_names]}
-    if not common:
-        return {'ok': False, 'error': '没有共同终末类别', 'exclusions': exclusions,
-                'candidate_terminal_states': candidate_names,
-                'reference_terminal_states': reference_names}
-    left = candidate_probs[:, [candidate_names.index(n) for n in common]]
-    right = reference_probs[:, [reference_names.index(n) for n in common]]
-    diff = np.abs(left - right)
-    max_diff = float(np.nanmax(diff)) if diff.size else 0.0
-
-    # 吸收方程残差：用官方 transition matrix 与共同终末状态检查
-    residual = None
-    a = ad.read_h5ad(analysis_path)
-    labels = np.asarray(a.obs_names, dtype=str)
-    transition = sp.load_npz(transition_path).tocsr()
-    # terminal_states 列：用官方概率为 1 的行近似识别终末细胞
-    terminal_mask = (right.max(axis=1) >= 1.0 - 1e-12) & (right.sum(axis=1) >= 1.0 - 1e-12)
-    transient = np.where(~terminal_mask)[0]
-    terminal = np.where(terminal_mask)[0]
-    if len(transient) and len(terminal):
-        q = transition[transient][:, transient].toarray()
-        to_terminal = transition[transient][:, terminal].toarray()
-        state_of_cell = right[terminal].argmax(axis=1)
-        onehot = np.zeros((len(terminal), len(common)), dtype=float)
-        onehot[np.arange(len(terminal)), state_of_cell] = 1.0
-        solved = np.linalg.solve(np.eye(len(transient)) - q, to_terminal @ onehot)
-        residual = float(np.max(np.abs(solved - left[transient])))
-    ok = bool(max_diff <= TOLERANCE and (residual is None or residual <= RESIDUAL_TOLERANCE)
-              and len(common) >= 2 and not exclusions['candidate_only']
-              and not exclusions['reference_only'])
-    return {'ok': ok, 'common_terminal_states': common,
-            'candidate_terminal_states': candidate_names,
-            'reference_terminal_states': reference_names,
-            'exclusions': exclusions, 'multi_terminal': len(common) >= 2,
-            'max_abs_probability_diff': max_diff,
-            'absorption_residual': residual,
-            'shape': list(left.shape),
-            'cells': int(left.shape[0])}
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--subset', type=Path)
@@ -172,9 +125,7 @@ def main():
                                  args.worker_output)
     if not args.subset or not args.output:
         raise SystemExit('需要 --subset 与 --output')
-    if args.output.exists():
-        shutil.rmtree(args.output)
-    args.output.mkdir(parents=True)
+    args.output.mkdir(parents=True, exist_ok=False)
     config = dict(BASE_CONFIG, cellrank_terminal=args.terminal or '')
     if args.root_cell:
         config['root_cell'] = args.root_cell
@@ -211,9 +162,10 @@ def main():
         else:
             payload = np.load(reference_folder / 'reference_fate.npz', allow_pickle=False)
             try:
-                report = _compare(candidate_probs, candidate_names,
-                                  payload['probs'], list(payload['terminal_names']),
-                                  reference_folder / 'transition.npz', analysis)
+                from .fate_compare import compare
+                import scipy.sparse as sp
+                with np.load(args.output / 'cellflow' / 'fate.npz', allow_pickle=False) as candidate:
+                    report = compare(candidate, payload, sp.load_npz(reference_folder / 'transition.npz'))
             except Exception as exc:
                 report = {'ok': False, 'stage': 'compare',
                           'error': f'{type(exc).__name__}: {exc}'}

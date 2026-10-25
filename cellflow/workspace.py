@@ -169,10 +169,10 @@ def registry(project: Optional[str] = None) -> List[str]:
     return [str(Path(item['path']).resolve()) for item in entries]
 
 
-def register_dataset(path, name=None, source=None) -> None:
+def register_dataset(path, name=None, source=None, project=None) -> None:
     """登记到当前项目：保留原始文件名/来源；加锁 + 原子替换 + 路径去重。"""
     resolved = str(Path(path).resolve())
-    active = active_project()['id']
+    active = project if project is not None else active_project()['id']
     with _REGISTRY_LOCK:
         try:
             _drop_public_ignored(path)

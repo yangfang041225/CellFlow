@@ -33,18 +33,21 @@ def assess(result, quality, provenance=None, folder=None) -> dict:
         'evidence': ['任务完成，结果目录与报告文件可生成' if l0_ok else '任务未完成'],
     })
     checks = (quality or {}).get('checks') or []
-    hard_ok = bool((quality or {}).get('ok'))
+    hard_ok = bool(l0_ok and (quality or {}).get('ok') is True and checks
+                   and all(isinstance(c, dict) and (c.get('ok') is True or c.get('soft') is True)
+                           for c in checks))
     items.append({
         'level': 1, 'name': LEVELS[1], 'status': 'met' if (hard_ok and checks) else 'not_reached',
         'evidence': [f'结构/数值检查 {len(checks)} 项，全部通过' if hard_ok
                      else '数值/结构检查未通过或缺失'],
     })
-    reference = (provenance or {}).get('reference_comparison')
+    from .reference_evidence import verify
+    reference, reference_note = verify(folder, provenance.get('reference_comparison'), provenance)
+    reference = reference and hard_ok
     items.append({
         'level': 2, 'name': LEVELS[2],
         'status': 'met' if reference else 'not_reached',
-        'evidence': ['存在显式参考实现对照记录' if reference else
-                     '本次运行没有与官方实现的同配置对照；运行成功不会自动升级到 L2'],
+        'evidence': [reference_note],
     })
     items.append({
         'level': 3, 'name': LEVELS[3], 'status': 'not_reached',

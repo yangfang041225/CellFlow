@@ -132,7 +132,7 @@ export function DataView(props: {
 
   const upload = async (file: File) => {
     try {
-      if (/\.(csv|tsv|txt)$/i.test(file.name)) {
+      if (/\.(csv|tsv|txt)(\.gz)?$/i.test(file.name)) {
         const body = await api.tablePreview(file);
         setPreview({ id: body.preview_id, data: body.preview });
         setOrientation(body.preview.orientation_guess || 'cells_by_genes');

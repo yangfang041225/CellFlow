@@ -10,6 +10,7 @@ import hashlib
 import inspect
 import json
 import numpy as np
+import pandas as pd
 from scipy import sparse
 from scipy.sparse.linalg import LinearOperator, svds
 from .data import to_anndata, ids_hash, AUTO_GROUP
@@ -658,9 +659,14 @@ def _auto_pipeline(data, config, folder, record, log, result, decl=None):
                 result['caveats'] += fcaveats
                 result['evidence'].append('CellRank 2 GPCCA + 命运概率（CPU）')
             except Exception as exc:
+                if config.get('cellrank_terminal'):
+                    raise ValueError('请求的固定终末命运分析失败：' + str(exc)) from exc
                 result['caveats'].append('命运概率计算未完成：' + type(exc).__name__ + ': ' + str(exc))
     elif not has_cellrank:
         result['caveats'].append('本环境没有安装 CellRank：跳过命运概率（其余结果不受影响）。')
+
+    if config.get('cellrank_terminal') and 'fate' not in result:
+        raise ValueError('请求了固定终末类别，但本次未执行命运分析；请检查依赖、起点/剪接层和规模')
 
     result['gene_table'] = result.get('cluster_genes') or []
     result['evidence'].insert(0, 'CellFlow 一键流程（scanpy 分群/PAGA + scVelo 速度 + CellRank 命运）')
@@ -844,12 +850,21 @@ def run_adapter(method, data, config, folder, log):
             raise ValueError('适配器未产生 velocity 层')
         v_raw = np.asarray(a.layers['velocity'].toarray() if sparse.issparse(a.layers['velocity'])
                            else a.layers['velocity'])
-        valid = np.isfinite(v_raw).all(0) & (np.linalg.norm(np.nan_to_num(v_raw), axis=0) > 0)
+        # Preserve every fitted HVG before graph-only finite filtering; zero is comparable.
+        np.savez_compressed(folder / 'velocity_full.npz', velocity=v_raw,
+                            cells=np.asarray(a.obs_names, dtype=str), genes=np.asarray(a.var_names, dtype=str))
+        valid = np.isfinite(v_raw).all(0)
+        coverage = dict(total_genes=int(a.n_vars), finite_genes=int(valid.sum()),
+                        all_zero_genes=[str(a.var_names[i]) for i in np.flatnonzero(valid & (v_raw == 0).all(0))],
+                        nonfinite_genes=[str(a.var_names[i]) for i in np.flatnonzero(~valid)],
+                        full_artifact='velocity_full.npz')
+        (folder / 'velocity_coverage.json').write_text(json.dumps(coverage, ensure_ascii=False, indent=2), encoding='utf-8')
+        result['velocity_coverage'] = coverage
         if valid.sum() < 2:
             raise ValueError('少于 2 个有效速度基因；拟合失败，停止后续推断')
         if not valid.all():
             a = a[:, valid].copy()
-            result['caveats'].append(f'{int((~valid).sum())} 个非有限或全零速度基因未进入图；详见基因表。')
+            result['caveats'].append(f'{int((~valid).sum())} 个含非有限速度基因未进入图/候选基因表；完整矩阵与基因清单见 velocity_full.npz/velocity_coverage.json。全零有限基因保留。')
         fingerprint = hashlib.sha256()
         for matrix in (a.layers['Ms'], a.layers['Mu'], a.obsp['connectivities']):
             csr = sparse.csr_matrix(matrix)
@@ -949,6 +964,9 @@ def run_adapter(method, data, config, folder, log):
                use_petsc=False, solver='direct', n_jobs=1, backend='threading',
                show_progress_bar=False)
         names, probs, terms, term_counts, fate_negatives = _compute_fate(estimator, kernel, log, record)
+        np.savez_compressed(folder / 'fate.npz', probs=probs,
+                            cells=np.asarray(a.obs_names, dtype=str), terminal_names=np.asarray(names, dtype=str),
+                            terminal_labels=np.asarray([str(v) if not pd.isna(v) else '' for v in terms], dtype=str))
         if fate_negatives:
             log(f'直接吸收求解裁剪 {fate_negatives} 个极小负值')
         # 诊断：终末状态“落在拟时序早端”时，多半是图结构/吸收态造成的，

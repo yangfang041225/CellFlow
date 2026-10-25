@@ -101,7 +101,7 @@ def _cellflow_run(path: Path, mode: str, config: dict, output: Path) -> dict:
     if provenance.get('status') != 'completed':
         return {'error': provenance.get('error') or str(provenance)[:500],
                 'provenance': {k: provenance.get(k) for k in ('status', 'failed_stage', 'error')}}
-    payload = np.load(output / 'velocity.npz', allow_pickle=False)
+    payload = np.load(output / 'velocity_full.npz', allow_pickle=False)
     result = json.loads((output / 'result.json').read_text(encoding='utf-8'))
     metrics = {key: value for key, value in (result.get('metrics') or {}).items()
                if key.endswith('_median') and 'velocity' in key}
@@ -148,48 +148,9 @@ def _load(folder: Path) -> dict:
             'genes': payload['genes'].astype(str), 'metrics': metrics}
 
 
-def _align(reference: dict, candidate: dict):
-    cells = reference['cells']
-    genes = reference['genes']
-    if not np.array_equal(cells, candidate['cells']):
-        if set(cells) != set(candidate['cells']):
-            raise ValueError('细胞集合不一致，不能继续比较')
-        index = {cell: i for i, cell in enumerate(candidate['cells'])}
-        candidate = dict(candidate, velocity=candidate['velocity'][[index[c] for c in cells]])
-    excluded = []
-    if not np.array_equal(genes, candidate['genes']):
-        available = set(candidate['genes'])
-        excluded = [gene for gene in genes if gene not in available]
-        common = [gene for gene in genes if gene in available]
-        if not common:
-            raise ValueError('参考与候选没有共同速度基因，不能继续比较')
-        ref_index = {gene: i for i, gene in enumerate(genes)}
-        cand_index = {gene: i for i, gene in enumerate(candidate['genes'])}
-        reference = dict(reference,
-                         velocity=reference['velocity'][:, [ref_index[g] for g in common]],
-                         genes=np.asarray(common, dtype=str))
-        candidate = dict(candidate,
-                         velocity=candidate['velocity'][:, [cand_index[g] for g in common]],
-                         genes=np.asarray(common, dtype=str))
-    return reference, candidate, excluded
-
-
 def _compare_arrays(reference, candidate):
-    reference, candidate, excluded = _align(reference, candidate)
-    left = np.asarray(reference['velocity'], dtype=float)
-    right = np.asarray(candidate['velocity'], dtype=float)
-    if left.shape != right.shape:
-        raise ValueError(f'速度矩阵形状不一致：{left.shape} vs {right.shape}')
-    finite = np.isfinite(left) & np.isfinite(right)
-    diff = np.abs(left - right)
-    max_abs = float(np.nanmax(diff)) if diff.size else 0.0
-    mean_abs = float(np.nanmean(diff)) if diff.size else 0.0
-    flat_l = left[finite].ravel()
-    flat_r = right[finite].ravel()
-    corr = float(np.corrcoef(flat_l, flat_r)[0, 1]) if flat_l.size > 1 else None
-    return {'shape': list(left.shape), 'max_abs_diff': max_abs, 'mean_abs_diff': mean_abs,
-            'pearson': corr, 'finite_mismatch': int((~finite).sum()),
-            'excluded_genes': len(excluded)}
+    from .matrix_compare import compare_velocity
+    return compare_velocity(reference, candidate)
 
 
 def _run_worker(kind, subset, mode, config, folder):
@@ -224,7 +185,8 @@ def compare_mode(subset: Path, mode: str, config: dict, folder: Path) -> dict:
     except Exception as exc:
         return {'mode': mode, 'ok': False, 'error': f'{type(exc).__name__}: {exc}'}
     tolerance = TOLERANCE.get(mode, 1e-6)
-    ok = bool(stats['finite_mismatch'] == 0 and stats['max_abs_diff'] <= tolerance)
+    ok = bool(stats['coverage_complete'] and stats['finite_mismatch'] == 0
+              and stats['max_abs_diff'] is not None and stats['max_abs_diff'] <= tolerance)
     return {'mode': mode, 'ok': ok, 'tolerance': tolerance, **stats,
             'metrics': {'reference': reference['metrics'], 'cellflow': candidate['metrics']},
             'reference': {'cells': int(len(reference['cells'])),
@@ -248,9 +210,7 @@ def main():
         return _worker(args.worker, args.subset, args.mode, config, args.worker_output)
     if not args.subset or not args.output:
         raise SystemExit('需要 --subset 与 --output')
-    if args.output.exists():
-        shutil.rmtree(args.output)
-    args.output.mkdir(parents=True)
+    args.output.mkdir(parents=True, exist_ok=False)
     config = dict(BASE_CONFIG, n_top_genes=args.n_top_genes)
     results = []
     for mode in [item.strip() for item in args.modes.split(',') if item.strip()]:

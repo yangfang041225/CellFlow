@@ -16,7 +16,7 @@ def initial_window_size(available_width, available_height, desired=(1180, 780),
     return width, height, min(width, 980), min(height, 620)
 
 
-def run_window(root, logs, url, instance, log):
+def run_window(root, logs, url, instance, log, on_ready=None):
     # Local to this application; no changes to Windows proxy or GPU settings.
     _flags = '--no-proxy-server --disable-gpu'
     _extra = os.environ.get('CELLFLOW_WEBVIEW_FLAGS', '').strip()
@@ -131,6 +131,8 @@ def run_window(root, logs, url, instance, log):
         log('REACT_READY ' + json.dumps(data, ensure_ascii=False))
         ready = True
         probe.stop()
+        if on_ready is not None:
+            on_ready(window, page)
 
     def inspect():
         nonlocal attempts

@@ -196,6 +196,8 @@ def _open_process(pid, access):
     api.CloseHandle.argtypes = [wintypes.HANDLE]
     api.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.c_void_p]
     api.GetProcessTimes.argtypes = [wintypes.HANDLE] + [ctypes.c_void_p] * 4
+    api.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+    api.TerminateProcess.restype = wintypes.BOOL
     return api.OpenProcess(int(access), False, int(pid))
 
 
