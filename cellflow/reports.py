@@ -15,6 +15,7 @@ B 技术与复现报告：数据格式、环境版本、真实调用、超参数
   退回时间或文库大小，并在标题与图注里写明实际字段。
 """
 from pathlib import Path
+from html.parser import HTMLParser
 import hashlib
 import html
 import json
@@ -964,14 +965,15 @@ def interpretation_layers(result, config, method_key, folder=None, facts=None):
         sizes = groups.get('sizes') or {}
         n_groups = metrics.get('n_groups') or (len(sizes) if sizes else None)
         if n_groups:
-            observed.append(f'分群得到 {int(n_groups)} 个群（{groups.get("key") or "leiden"}，'
-                            f'分辨率 {config.get("leiden_resolution", "本次配置未记录")}）；'
+            observed.append(f'分群得到 {int(n_groups)} 个群（{_md(groups.get("key") or "leiden")}，'
+                            f'分辨率 {_md(config.get("leiden_resolution", "本次配置未记录"))}）；'
                             '群编号是算法产物，不能自动等同于细胞类型。')
         if sizes:
-            observed.append('群大小：' + '，'.join(f'{key}={value} 个细胞'
+            observed.append('群大小：' + '，'.join(f'{_md(key)}={_md(value)} 个细胞'
                                                  for key, value in sizes.items()) + '。')
     if 'embedding' in steps:
-        observed.append(f'降维展示使用 {str(result.get("embedding_basis") or "pca").upper()} '
+        observed.append(f'降维展示使用 '
+                        f'{_md(str(result.get("embedding_basis") or "pca").upper())} '
                         '的二维坐标（投影会失真，不等于真实距离）。')
     if 'paga' in steps:
         observed.append('输出包含 PAGA 群间连接矩阵（无向、0–1，未逐行归一化）。')
@@ -1021,10 +1023,10 @@ def interpretation_layers(result, config, method_key, folder=None, facts=None):
         if 'fate' in steps:
             kernel = str(fate.get('kernel') or '未记录')
             if 'Pseudotime' in kernel:
-                inferred.append(f'命运概率来自 CellRank（{kernel}）的转移矩阵，'
+                inferred.append(f'命运概率来自 CellRank（{_md(kernel)}）的转移矩阵，'
                                 '输入是 DPT 拟时序而不是速度核；概率高不等于谱系已被验证。')
             else:
-                inferred.append(f'命运概率来自 CellRank（{kernel}）的速度核转移矩阵；'
+                inferred.append(f'命运概率来自 CellRank（{_md(kernel)}）的速度核转移矩阵；'
                                 '概率高不等于谱系已被验证。')
     else:
         inferred.append('本次没有执行 RNA velocity：没有速度矩阵、箭头或命运概率输出，'
@@ -1187,6 +1189,233 @@ def _render_markdown(text):
         return '<pre>' + html.escape(text) + '</pre>'
 
 
+# ---------------------------------------------------------------- 输出安全（F16）
+# 数据单元（数据集名、obs 值、基因名、config 文本、错误信息、路径）进入 Markdown
+# 之前先做 HTML 转义；最终 HTML 再走一遍白名单清洗 + CSP，双重防线。
+CSP_CONTENT = ("default-src 'self'; script-src 'none'; "
+               "img-src 'self' data: file:; style-src 'self' 'unsafe-inline'; "
+               "base-uri 'none'; form-action 'none'; object-src 'none'")
+
+
+def _md(value):
+    """数据单元进入 Markdown**文本**前的 HTML 转义（& < > " '）。"""
+    return html.escape(str(value), quote=True)
+
+
+def _inline_code(value):
+    """把数据放进行内代码：按内容里的反引号数量选分隔符，避免被内容截断。"""
+    text = str(value)
+    longest = max((len(match.group(0)) for match in re.finditer(r'`+', text)), default=0)
+    fence = '`' * (longest + 1)
+    padding = ' ' if text.startswith('`') or text.endswith('`') else ''
+    return f'{fence}{padding}{text}{padding}{fence}'
+
+
+def _num3(value):
+    """三位小数；数值异常时退回转义后的原文，不让格式化异常或原始 HTML 进入报告。"""
+    try:
+        return f'{float(value):.3f}'
+    except Exception:
+        return _md(value)
+
+
+def _fenced(text, lang='text'):
+    """围栏代码块：围栏长度随内容动态选择，防止内容里的 ``` 提前结束代码块。"""
+    text = str(text)
+    longest = max((len(match.group(0)) for match in re.finditer(r'`+', text)), default=0)
+    fence = '`' * max(3, longest + 1)
+    return f'{fence}{lang}\n{text}\n{fence}'
+
+
+# 白名单：只保留报告自身与 Markdown 渲染会产生、且可安全展示的标签/属性。
+_ALLOWED_TAGS = {
+    'html', 'head', 'meta', 'title', 'style', 'body',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'div', 'span', 'small', 'br', 'hr',
+    'strong', 'b', 'em', 'i', 'u', 'del', 'ins', 's', 'sup', 'sub', 'mark',
+    'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+    'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'colgroup', 'col',
+    'blockquote', 'pre', 'code', 'a', 'img', 'figure', 'figcaption',
+}
+_VOID_TAGS = {'meta', 'br', 'hr', 'img', 'col'}
+# 这些标签连同内容一起丢掉（内容本身也不允许出现）
+_DROP_WITH_CONTENT = {'script', 'noscript', 'iframe', 'frame', 'frameset', 'object', 'embed',
+                      'applet', 'form', 'input', 'button', 'select', 'textarea', 'option',
+                      'template', 'svg', 'math', 'base', 'link', 'video', 'audio', 'source',
+                      'track', 'canvas', 'portal'}
+# HTML 里可以自闭合/没有结束标签的“空元素”；丢弃它们时不能进入“跳过内容”状态
+_VOID_HTML = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta',
+              'param', 'source', 'track', 'wbr', 'frame'}
+_GLOBAL_ATTRS = {'class', 'id', 'title', 'style', 'dir', 'lang', 'role'}
+_TAG_ATTRS = {
+    'html': {'lang', 'dir'},
+    'meta': {'http-equiv', 'content', 'charset', 'name'},
+    'a': {'href', 'name', 'target', 'rel'},
+    'img': {'src', 'alt', 'width', 'height', 'loading'},
+    'th': {'colspan', 'rowspan', 'scope', 'align', 'valign', 'width'},
+    'td': {'colspan', 'rowspan', 'align', 'valign', 'width'},
+    'col': {'span', 'width'},
+    'colgroup': {'span'},
+    'ol': {'start', 'type'},
+    'table': {'summary', 'border', 'cellpadding', 'cellspacing'},
+}
+_URL_ATTRS = {'href', 'src'}
+_BAD_SCHEMES = ('javascript:', 'vbscript:', 'data:text/html', 'data:text/xml',
+                'data:application/xhtml', 'livescript:', 'mocha:')
+_SAFE_DATA_IMAGE = ('data:image/png', 'data:image/jpeg', 'data:image/gif',
+                    'data:image/webp', 'data:image/bmp')
+
+
+def _clean_url(value, tag):
+    """只放行相对路径 / http(s) / mailto / 图片 data:；拦掉 javascript: 等伪协议。"""
+    text = re.sub(r'[\x00-\x20]+', '', str(value or ''))
+    lowered = text.lower()
+    if not text:
+        return None
+    if text.startswith('//'):
+        return None             # 协议相对 URL：报告不需要，直接拒绝
+    if lowered.startswith('data:'):
+        return text if lowered.startswith(_SAFE_DATA_IMAGE) else None
+    if any(lowered.startswith(bad) for bad in _BAD_SCHEMES):
+        return None
+    if lowered.startswith('file:') and tag != 'img':
+        return None
+    return text
+
+
+def _clean_style(value):
+    text = str(value or '')
+    lowered = text.lower()
+    for bad in ('javascript:', 'expression(', 'behavior:', '-moz-binding',
+                '@import', 'url(', '&#', '\\'):
+        if bad in lowered:
+            return None
+    return text
+
+
+def _clean_css(text):
+    """内联 <style> 内容：去掉可加载外部资源或执行表达式的写法。"""
+    result = str(text or '')
+    for pattern in (r'(?i)javascript\s*:', r'(?i)expression\s*\(', r'(?i)@import',
+                    r'(?i)behavior\s*:', r'(?i)-moz-binding', r'(?i)url\s*\(',
+                    r'</\s*style'):
+        result = re.sub(pattern, '', result)
+    return result
+
+
+def _attr_text(value):
+    """属性值转义：& < > " 必须转义；单引号保留（属性用双引号包裹，CSP 内容保持可读）。"""
+    return (str('' if value is None else value)
+            .replace('&', '&amp;')
+            .replace('<', '&lt;')
+            .replace('>', '&gt;')
+            .replace('"', '&quot;'))
+
+
+class _Sanitizer(HTMLParser):
+    """白名单清洗：删危险标签/事件属性/伪协议 URL，保留报告自身的结构与样式。"""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts = []
+        self.skip = []          # 正在丢弃内容的标签栈
+        self.style_depth = 0
+
+    # -- 标签 ----------------------------------------------------------
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+        if self.skip:
+            if tag == self.skip[-1] or (tag in _DROP_WITH_CONTENT and tag not in _VOID_HTML):
+                self.skip.append(tag)
+            return
+        if tag in _DROP_WITH_CONTENT:
+            if tag not in _VOID_HTML:
+                self.skip.append(tag)
+            return
+        if tag not in _ALLOWED_TAGS:
+            return              # 丢标签、留文本（例如 <marquee>）
+        self.parts.append(self._open(tag, attrs))
+        if tag == 'style':
+            self.style_depth += 1
+
+    def handle_startendtag(self, tag, attrs):
+        tag = tag.lower()
+        if self.skip or tag in _DROP_WITH_CONTENT or tag not in _ALLOWED_TAGS:
+            return
+        self.parts.append(self._open(tag, attrs, self_closing=True))
+
+    def handle_endtag(self, tag):
+        tag = tag.lower()
+        if self.skip:
+            if tag == self.skip[-1]:
+                self.skip.pop()
+            elif tag in self.skip:
+                while self.skip:
+                    if self.skip.pop() == tag:
+                        break
+            return
+        if tag == 'style' and self.style_depth:
+            self.style_depth -= 1
+        if tag in _VOID_TAGS or tag not in _ALLOWED_TAGS:
+            return
+        self.parts.append(f'</{tag}>')
+
+    def _open(self, tag, attrs, self_closing=False):
+        rendered = []
+        allowed = _GLOBAL_ATTRS | _TAG_ATTRS.get(tag, set())
+        for name, value in attrs:
+            name = str(name).lower()
+            if name.startswith('on') or name in ('srcdoc', 'formaction', 'xlink:href',
+                                                 'xmlns', 'background', 'poster'):
+                continue
+            if name not in allowed:
+                continue
+            if name == 'http-equiv' and str(value or '').lower() != 'content-security-policy':
+                continue
+            if name in _URL_ATTRS:
+                value = _clean_url(value, tag)
+                if not value:
+                    continue
+            elif name == 'style':
+                value = _clean_style(value)
+                if not value:
+                    continue
+            rendered.append(f' {name}="{_attr_text(value)}"')
+        closing = '/>' if (self_closing or tag in _VOID_TAGS) else '>'
+        return f'<{tag}{"".join(rendered)}{closing}'
+
+    # -- 文本 / 注释 ---------------------------------------------------
+    def handle_data(self, data):
+        if self.skip:
+            return
+        if self.style_depth:
+            self.parts.append(_clean_css(data))
+        else:
+            self.parts.append(html.escape(data, quote=False))
+
+    def handle_entityref(self, name):
+        if not self.skip:
+            self.handle_data(f'&{name};')
+
+    def handle_charref(self, name):
+        if not self.skip:
+            self.handle_data(f'&#{name};')
+
+    def handle_comment(self, data):
+        return              # 注释整段丢弃（可能藏条件注释/脚本片段）
+
+    def handle_decl(self, decl):
+        if str(decl or '').lower().startswith('doctype'):
+            self.parts.append('<!' + str(decl) + '>')
+
+
+def sanitize_html(markup):
+    """最终 HTML 导出的白名单清洗入口（幂等：对已清洗文本再跑一次结果不变）。"""
+    parser = _Sanitizer()
+    parser.feed(str(markup))
+    parser.close()
+    return ''.join(parser.parts)
+
+
 def _figure_files(folder):
     folder = Path(folder)
     figures = folder / 'figures'
@@ -1221,15 +1450,19 @@ def _report_css():
 
 def _write_html_report(path, title, body_parts, figures, captions):
     images = ''.join(
-        f'<figure id="fig-{index}"><img src="figures/{html.escape(name)}" width="640" '
-        f'alt="{html.escape(Path(name).stem)}">'
-        f'<figcaption>{html.escape(captions.get(name) or "")}</figcaption></figure>'
+        f'<figure id="fig-{index}"><img src="figures/{html.escape(name, quote=True)}" '
+        f'width="640" alt="{html.escape(Path(name).stem, quote=True)}">'
+        f'<figcaption>{html.escape(captions.get(name) or "", quote=True)}</figcaption></figure>'
         for index, name in enumerate(figures, start=1))
+    csp = (f'<meta http-equiv="Content-Security-Policy" content="{CSP_CONTENT}">'
+           '<meta name="referrer" content="no-referrer">')
     markup = ('<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
+              + csp +
               f'<title>{html.escape(title)}</title>' + _report_css() + '</head><body>'
               f'<h1>{html.escape(title)}</h1>' + images +
               _render_markdown('\n\n'.join(body_parts)) + '</body></html>')
-    Path(path).write_text(markup, encoding='utf-8')
+    # 最终导出前再走一遍白名单清洗（数据单元已在生成端转义，这里是第二道防线）
+    Path(path).write_text(sanitize_html(markup), encoding='utf-8')
 
 
 # ---------------------------------------------------------------- 报告总装
@@ -1247,28 +1480,30 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
 
     # =========================== A：生物学分析报告
     bio.append('# A 生物学分析报告')
-    bio.append(f'任务状态：**{status}**｜方法：**{_method_name(method)}**（{method}）｜'
+    bio.append(f'任务状态：**{status}**｜方法：**{_method_name(method)}**（{_md(method)}）｜'
                f'核查日期：{CHECKED}')
     if _simulation_banner(simulated):
         bio.append(_simulation_banner(simulated))
     bio.append('## 0. 一句话结论\n\n' + _headline(method, info, error))
     bio.append(EVIDENCE_NOTE)
 
-    # 1. 数据与输入
+    # 1. 数据与输入（所有数据单元先转义再进 Markdown）
     bio.append('## 1. 数据与输入\n\n' + '\n'.join([
-        f'- 细胞数 × 基因数：{facts.get("n_cells", "未知")} × {facts.get("n_genes", "未知")}'
-        + (f'（文件：{fmt["file"]["name"]}，{fmt["file"]["size_text"]}）' if fmt else ''),
-        f'- 物种 / 组织：{config.get("species") or "未提供"} / {config.get("tissue") or "未提供"}',
-        f'- 供体·样本列：{config.get("sample_key") or "未指定"}'
+        f'- 细胞数 × 基因数：{_md(facts.get("n_cells", "未知"))} × '
+        f'{_md(facts.get("n_genes", "未知"))}'
+        + (f'（文件：{_md(fmt["file"]["name"])}，{_md(fmt["file"]["size_text"])}）' if fmt else ''),
+        f'- 物种 / 组织：{_md(config.get("species") or "未提供")} / '
+        f'{_md(config.get("tissue") or "未提供")}',
+        f'- 供体·样本列：{_md(config.get("sample_key") or "未指定")}'
         f'（未指定时细胞**不是**独立生物学重复）',
-        f'- 数据层：{", ".join(fmt["layers_present"]) if fmt and fmt.get("layers_present") else "只有 X 表达矩阵"}',
-        f'- 基因 ID 类型：{fmt["var"]["id_kind"] if fmt else "未知"}',
+        f'- 数据层：{_md(", ".join(fmt["layers_present"])) if fmt and fmt.get("layers_present") else "只有 X 表达矩阵"}',
+        f'- 基因 ID 类型：{_md(fmt["var"]["id_kind"]) if fmt else "未知"}',
     ]))
 
     # 2. 质量
     if qc:
-        mt_text = (f'线粒体前缀 `{qc.get("mt_prefix", config.get("mt_prefix"))}` 命中 '
-                   f'{qc.get("mt_genes_found", 0)} 个基因，比例中位数 '
+        mt_text = (f'线粒体前缀 {_inline_code(qc.get("mt_prefix", config.get("mt_prefix")))} 命中 '
+                   f'{_md(qc.get("mt_genes_found", 0))} 个基因，比例中位数 '
                    f'{np.median(qc["mt_pct"]):.2f}%；未命中时该比例没有解释意义。')
         bio.append('## 2. 数据质量（observed）\n\n' + '\n'.join([
             f'- 每细胞总表达中位数：{np.median(qc["total"]):.1f}',
@@ -1281,12 +1516,13 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
 
     # 3. 准入
     blockers = list(facts.get('warnings', [])) + list(facts.get('errors', []))
-    bio.append('## 3. 方法准入与数据前提\n\n' + ('\n'.join('- ' + str(item) for item in blockers)
-                                                 if blockers else '- 未记录到阻塞问题。'))
+    bio.append('## 3. 方法准入与数据前提\n\n' +
+               ('\n'.join('- ' + _md(item) for item in blockers)
+                if blockers else '- 未记录到阻塞问题。'))
 
     # 4. 本次结果
     if error:
-        bio.append('## 4. 运行限制\n\n```text\n' + str(error) + '\n```\n\n'
+        bio.append('## 4. 运行限制\n\n' + _fenced(error) + '\n\n'
                    '本次没有可解释的模型结果；**禁止**从失败任务推断趋势、方向或关键基因。'
                    '请查看 B 报告的失败原因与日志后再决定下一步。')
     elif result:
@@ -1296,39 +1532,41 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
         lines = [f'## 4. 本次实际得到的结果（{label}）', '']
         lines.append('- 实际执行并输出的步骤：' + _steps_text(info.get('steps')))
         if info.get('velocity_mode'):
-            lines.append(f'- 实际使用的速度模型模式：`{info["velocity_mode"]}`'
+            lines.append(f'- 实际使用的速度模型模式：{_inline_code(info["velocity_mode"])}'
                          '（取自真实调用记录，不是配置默认值）')
         embedding_name = str(result.get('embedding_name') or '').replace('（二维投影可能失真）', '')
-        lines.append(f'- 降维展示：{embedding_name}（二维投影会失真，距离不等于生物学差异）')
-        lines.append(f'- 时间/排序字段：{result.get("time_name") or "本次没有产生时间或拟时序"}')
+        lines.append(f'- 降维展示：{_md(embedding_name)}（二维投影会失真，距离不等于生物学差异）')
+        lines.append(f'- 时间/排序字段：'
+                     f'{_md(result.get("time_name") or "本次没有产生时间或拟时序")}')
         effective = result.get('effective') or {}
         if effective:
-            lines.append('- 实际使用的预处理：' + '，'.join(f'{key}={value}'
-                                                       for key, value in effective.items()))
+            lines.append('- 实际使用的预处理：' +
+                         '，'.join(f'{_md(key)}={_md(value)}'
+                                  for key, value in effective.items()))
         bio.append('\n'.join(lines))
         if (folder / 'figures' / 'embedding.svg').exists():
             bio.append('![降维展示](figures/embedding.svg)')
 
         groups = result.get('groups') or {}
         if groups.get('sizes'):
-            sizes = '，'.join(f'{key}: {value} 个细胞' for key, value in
+            sizes = '，'.join(f'{_md(key)}: {_md(value)} 个细胞' for key, value in
                              sorted(groups['sizes'].items(), key=lambda kv: -kv[1]))
-            bio.append('### 4.1 分群（' + str(groups.get('key')) + '）\n\n'
+            bio.append('### 4.1 分群（' + _md(groups.get('key')) + '）\n\n'
                        f'- 共 {len(groups["sizes"])} 群：{sizes}\n'
                        '- 群编号是算法产物；换参数会得到不同的群，不能自动等同于细胞类型。')
             gene_table = result.get('gene_table') or []
             if gene_table and isinstance(gene_table[0], dict) and 'genes' in gene_table[0]:
                 rows = ['| 群 | 细胞数 | 相对高表达基因（描述性） |', '|---|---|---|']
                 for row in gene_table:
-                    genes = '、'.join(item['gene'] for item in row['genes'][:5]) or '无'
-                    rows.append(f'| {row["group"]} | {row["n"]} | {genes} |')
+                    genes = '、'.join(_md(item.get('gene')) for item in row['genes'][:5]) or '无'
+                    rows.append(f'| {_md(row.get("group"))} | {_md(row.get("n"))} | {genes} |')
                 bio.append('\n'.join(rows) + '\n\n> 这是“组内均值 − 组外均值”的排序，'
                                             '没有做检验，不是标记基因结论。')
 
         paga = result.get('paga') or {}
         if paga.get('groups'):
             bio.append('### 4.2 群间连接（PAGA，无向）\n\n'
-                       f'- 群：{"、".join(map(str, paga["groups"]))}\n'
+                       f'- 群：{"、".join(_md(item) for item in paga["groups"])}\n'
                        '- 连接强度矩阵保存在 result.json 的 `paga.connectivities`；'
                        '热图见 figures/paga.svg（原始 0–1 数值，未逐行归一化）。\n'
                        '- PAGA 只说明群之间“像不像、连不连”，**不说明谁分化成谁**。')
@@ -1336,7 +1574,8 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
             if hint.get('table'):
                 rows = ['| 群 | 细胞数 | 平均拟时序 |', '|---|---|---|']
                 for row in hint['table']:
-                    rows.append(f'| {row["group"]} | {row["n"]} | {row["mean_time"]:.3f} |')
+                    rows.append(f'| {_md(row.get("group"))} | {_md(row.get("n"))} | '
+                                f'{_num3(row.get("mean_time"))} |')
                 bio.append('\n'.join(rows) + '\n\n> 方向线索来自指定的起点；'
                                             '拟时序是相对顺序，不是真实时间。')
 
@@ -1345,26 +1584,29 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
             probs = np.asarray(fate.get('probabilities') or [], dtype=float)
             names = fate['terminal_states']
             bio.append('### 4.3 终末状态与命运概率（模型推断）\n\n'
-                       f'- 识别到的终末状态：{"、".join(names)}（估计器 {fate.get("estimator")}，'
-                       f'kernel {fate.get("kernel")}）')
+                       f'- 识别到的终末状态：{"、".join(_md(name) for name in names)}'
+                       f'（估计器 {_md(fate.get("estimator"))}，'
+                       f'kernel {_md(fate.get("kernel"))}）')
             stats = fate.get('terminal_state_stats') or {}
             if stats:
                 rows = ['| 终末状态 | 细胞数 | 平均拟时序 |', '|---|---|---|']
                 for name, item in stats.items():
-                    rows.append(f'| {name} | {item["cells"]} | {item["mean_time"]:.3f} |')
+                    rows.append(f'| {_md(name)} | {_md(item.get("cells"))} | '
+                                f'{_num3(item.get("mean_time"))} |')
                 bio.append('\n'.join(rows))
             if probs.size:
                 bio.append(f'- 每个细胞对 {probs.shape[1]} 个终末状态的概率之和约为 1；'
                            f'最强概率的平均值为 {np.mean(probs.max(1)):.3f}。')
             early = fate.get('early_terminal_states') or []
             if early:
-                bio.append(f'- ⚠️ **疑似“早端”终末状态：{"、".join(early)}**，'
+                bio.append(f'- ⚠️ **疑似“早端”终末状态：'
+                           f'{"、".join(_md(name) for name in early)}**，'
                            '其平均拟时序低于整体中位数。这通常来自图结构或吸收态，'
                            '**不能**解释为“细胞最终回到早期状态”。')
             drivers = fate.get('drivers') or []
             if drivers:
                 bio.append(f'- 命运驱动基因候选（前 {min(5, len(drivers))} 条）：' +
-                           '、'.join(str(item.get('gene')) for item in drivers[:5]) +
+                           '、'.join(_md(item.get('gene')) for item in drivers[:5]) +
                            '（相关性排序，未做因果或扰动验证）')
             if (folder / 'figures' / 'fate.svg').exists():
                 bio.append('![命运概率](figures/fate.svg)')
@@ -1373,26 +1615,29 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
 
         velocity_table = result.get('velocity_table') or []
         if velocity_table:
-            rows = ['| 基因 | ' + ' | '.join(key for key in velocity_table[0] if key != 'gene') + ' |',
+            rows = ['| 基因 | ' + ' | '.join(_md(key) for key in velocity_table[0]
+                                            if key != 'gene') + ' |',
                     '|---|' + '---|' * (len(velocity_table[0]) - 1)]
             for row in velocity_table[:10]:
-                cells = [_fmt_num(value, 3) if isinstance(value, (int, float)) else str(value)
-                         for key, value in row.items() if key != 'gene']
-                rows.append(f'| {row.get("gene")} | ' + ' | '.join(cells) + ' |')
+                cells = [_md(_fmt_num(value, 3)) if isinstance(value, (int, float))
+                         else _md(value) for key, value in row.items() if key != 'gene']
+                rows.append(f'| {_md(row.get("gene"))} | ' + ' | '.join(cells) + ' |')
             bio.append('### 4.4 速度候选基因（模型内部排序）\n\n' + '\n'.join(rows) +
                        '\n\n> 排序只在该模型、该数据设定内可比；高似然不等于“驱动基因”，'
                        '也不证明因果。')
         dpt = result.get('dpt') or {}
         if dpt:
-            lines = [f'- 可达细胞：{dpt.get("reachable", "未知")} / {dpt.get("n_cells", "未知")}',
-                     f'- diffusion 成分数：{dpt.get("diffmap_components", "未知")}']
+            lines = [f'- 可达细胞：{_md(dpt.get("reachable", "未知"))} / '
+                     f'{_md(dpt.get("n_cells", "未知"))}',
+                     f'- diffusion 成分数：{_md(dpt.get("diffmap_components", "未知"))}']
             order = (dpt.get('group_order') or {}).get('table') or []
             if order:
                 lines.append('- 各群平均拟时序（方向线索，不是谱系证据）：\n')
                 lines.append('| 群 | 细胞数 | 平均拟时序 |')
                 lines.append('|---|---|---|')
                 for row in order:
-                    lines.append(f'| {row["group"]} | {row["n"]} | {row["mean_time"]:.3f} |')
+                    lines.append(f'| {_md(row.get("group"))} | {_md(row.get("n"))} | '
+                                 f'{_num3(row.get("mean_time"))} |')
             bio.append('### 4.5 扩散拟时序（DPT）\n\n' + '\n'.join(lines) +
                        '\n\n> 拟时序是相对顺序，依赖你指定的起点；不是真实小时数。')
 
@@ -1402,7 +1647,7 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
             for key, value in metrics.items():
                 if isinstance(value, (dict, list)):
                     continue
-                rows.append(f'| {key} | {_fmt_num(value, 4)} |')
+                rows.append(f'| {_md(key)} | {_md(_fmt_num(value, 4))} |')
             bio.append('### 4.6 模型内部诊断指标\n\n' + '\n'.join(rows) +
                        '\n\n> 这些是内部一致性诊断，**不是**外部准确率；'
                        '不同方法的损失/似然不可直接比较。')
@@ -1410,15 +1655,17 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
         genes = result.get('gene_table') or []
         flat_genes = [item for item in genes if isinstance(item, dict) and 'gene' in item]
         if flat_genes:
-            rows = ['| 基因 | ' + ' | '.join(key for key in flat_genes[0] if key != 'gene') + ' |',
+            rows = ['| 基因 | ' + ' | '.join(_md(key) for key in flat_genes[0]
+                                            if key != 'gene') + ' |',
                     '|---|' + '---|' * (len(flat_genes[0]) - 1)]
             for item in flat_genes[:12]:
                 cells = []
                 for key, value in item.items():
                     if key == 'gene':
                         continue
-                    cells.append(_fmt_num(value, 3) if isinstance(value, (int, float)) else str(value))
-                rows.append(f'| {item["gene"]} | ' + ' | '.join(cells) + ' |')
+                    cells.append(_md(_fmt_num(value, 3)) if isinstance(value, (int, float))
+                                 else _md(value))
+                rows.append(f'| {_md(item["gene"])} | ' + ' | '.join(cells) + ' |')
             bio.append('### 4.7 候选基因指标（前 12 条）\n\n' + '\n'.join(rows) +
                        '\n\n> 拟合参数的单位依赖缩放；排序只在该模型、该数据设定内可比。'
                        '候选基因不等于因果驱动基因。')
@@ -1428,33 +1675,36 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
             bio.append('### 4.8 探索性基因趋势\n\n'
                        '按相对时间等细胞数分箱，计算 log1p(CP10k) 均值；基因是在**同一份数据**上挑的，'
                        '没有独立检验。图见 figures/trends.svg。\n\n' +
-                       '\n'.join(f'- {row["gene"]}：探索性 Spearman ρ = '
-                                 f'{row["exploratory_spearman"]:.3f}' for row in trends))
+                       '\n'.join(f'- {_md(row.get("gene"))}：探索性 Spearman ρ = '
+                                 f'{_num3(row.get("exploratory_spearman"))}'
+                                 for row in trends))
             if (folder / 'figures' / 'trends.svg').exists():
                 bio.append('![基因趋势](figures/trends.svg)')
 
         if result.get('caveats'):
             bio.append('### 4.9 本次结果自带的解释边界\n\n' +
-                       '\n'.join('- ' + str(item) for item in result['caveats']))
+                       '\n'.join('- ' + _md(item) for item in result['caveats']))
         bio.append(interpretation_layers(result, config, method, folder=folder, facts=facts))
         if result.get('evidence'):
-            bio.append('### 4.11 证据来源\n\n' + '\n'.join('- ' + str(item)
+            bio.append('### 4.11 证据来源\n\n' + '\n'.join('- ' + _md(item)
                                                           for item in result['evidence']))
 
     # 5. 参数解释
     dynamics_used = 'recover_dynamics' in (info.get('steps') or [])
     velocity_used = 'velocity' in (info.get('steps') or [])
     bio.append('## 5. 参数解释（本次真实取值）\n\n' + '\n'.join([
-        f'- `n_top_genes = {config.get("n_top_genes")}`：高变基因数量；越多越慢，基因少时自动受限。',
-        f'- `n_neighbors = {config.get("n_neighbors")}`：邻域大小；越大越平滑。',
-        f'- `n_pcs = {config.get("n_pcs")}`：邻域使用的 PCA 维度。',
-        f'- `min_shared_counts = {config.get("min_shared_counts")}`：剪接共同计数阈值（velocity 用）'
+        f'- `n_top_genes = {_md(config.get("n_top_genes"))}`：高变基因数量；'
+        '越多越慢，基因少时自动受限。',
+        f'- `n_neighbors = {_md(config.get("n_neighbors"))}`：邻域大小；越大越平滑。',
+        f'- `n_pcs = {_md(config.get("n_pcs"))}`：邻域使用的 PCA 维度。',
+        f'- `min_shared_counts = {_md(config.get("min_shared_counts"))}`：'
+        '剪接共同计数阈值（velocity 用）'
         + ('' if velocity_used else '——本次未触发 velocity，该值未被使用。'),
-        f'- `max_iter = {config.get("max_iter")}`：dynamical 优化迭代上限；不保证收敛'
+        f'- `max_iter = {_md(config.get("max_iter"))}`：dynamical 优化迭代上限；不保证收敛'
         + ('' if dynamics_used else '——本次未运行 recover_dynamics，该值未被使用。'),
-        f'- `leiden_resolution = {config.get("leiden_resolution")}`：自动分群分辨率。',
-        f'- `use_umap = {config.get("use_umap")}`：是否用 UMAP 展示（关闭时用 PCA）。',
-        f'- `seed = {config.get("seed")}`：随机种子，影响 PCA/UMAP/分群与模型初始化。',
+        f'- `leiden_resolution = {_md(config.get("leiden_resolution"))}`：自动分群分辨率。',
+        f'- `use_umap = {_md(config.get("use_umap"))}`：是否用 UMAP 展示（关闭时用 PCA）。',
+        f'- `seed = {_md(config.get("seed"))}`：随机种子，影响 PCA/UMAP/分群与模型初始化。',
         '- 默认值是**计算起点**，不是适用于所有组织的最佳参数；参数敏感性需要单独评估。',
     ]))
 
@@ -1483,63 +1733,70 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
     bio.append('## 7. 官方方法来源\n\n核查日期：' + CHECKED +
                '。运行版本以 B 报告与环境快照为准。'
                + ('' if error else '仅列出本次实际执行的方法与质控。') + '\n\n' +
-               '\n'.join(f'- [{item.name}]({item.source})' for item in METHODS
+               '\n'.join(f'- [{_md(item.name)}]({html.escape(str(item.source), quote=True)})'
+                         for item in METHODS
                          if item.source and item.key in source_keys))
 
     # =========================== B：技术与复现报告
     prov = provenance or {}
     tech.append('# B 技术与复现报告')
-    tech.append(f'任务状态：**{status}**｜方法：`{method}`｜任务目录：`{folder.resolve()}`'
+    tech.append(f'任务状态：**{status}**｜方法：{_inline_code(method)}｜'
+                f'任务目录：{_inline_code(folder.resolve())}'
                 + ('｜**模拟数据**' if simulated else ''))
     if error:
-        tech.append('## 0. 失败摘要\n\n```text\n' + str(error) + '\n```\n\n'
+        tech.append('## 0. 失败摘要\n\n' + _fenced(error) + '\n\n'
                     '失败任务同样保留了输入、配置、环境、日志与报告，便于定位问题。')
 
     tech.append('## 1. 运行环境\n\n' + '\n'.join([
-        f'- Python：{prov.get("python", "未知")}',
-        f'- 解释器：`{prov.get("executable", "未知")}`',
-        f'- 平台：{prov.get("platform", "未知")}',
-        f'- 计算设备：{prov.get("device", "cpu")}'
+        f'- Python：{_md(prov.get("python", "未知"))}',
+        f'- 解释器：{_inline_code(prov.get("executable", "未知"))}',
+        f'- 平台：{_md(prov.get("platform", "未知"))}',
+        f'- 计算设备：{_md(prov.get("device", "cpu"))}'
         + ('（使用 CUDA）' if prov.get('device') == 'cuda' else '（CPU，未调用 CUDA）'),
-        f'- 线程限制：{json.dumps(prov.get("thread_limits", {}), ensure_ascii=False)}',
+        f'- 线程限制：{_md(json.dumps(prov.get("thread_limits", {}), ensure_ascii=False))}',
         '- 完整依赖版本：见同目录 `environment.json`（本次解释器真实安装的所有包）。',
     ]))
 
     if fmt:
         mat = fmt['matrices'].get('X', {})
         tech.append('## 2. 数据格式检查（observed）\n\n' + '\n'.join([
-            f'- 文件：`{fmt["file"]["name"]}`（{fmt["file"]["suffix"]}，{fmt["file"]["size_text"]}）',
-            f'- 维度：{fmt["shape"]["n_cells"]} 细胞 × {fmt["shape"]["n_genes"]} 基因',
-            f'- X：dtype={mat.get("dtype")}，稀疏={mat.get("sparse")}，'
+            f'- 文件：{_inline_code(fmt["file"]["name"])}'
+            f'（{_md(fmt["file"]["suffix"])}，{_md(fmt["file"]["size_text"])}）',
+            f'- 维度：{_md(fmt["shape"]["n_cells"])} 细胞 × {_md(fmt["shape"]["n_genes"])} 基因',
+            f'- X：dtype={_md(mat.get("dtype"))}，稀疏={_md(mat.get("sparse"))}，'
             f'非零比例={mat.get("nonzero_pct", 0):.2f}%，'
-            f'整数外观={mat.get("integer_like")}，max={mat.get("max")}',
-            f'- 数据层：{", ".join(fmt["layers_present"]) or "无"}',
-            f'- obs 列：{", ".join(item["name"] for item in fmt["obs"]) or "无"}',
-            f'- var：{fmt["var"]["id_kind"]}，唯一={fmt["var"]["unique"]}，'
-            f'线粒体命中 {fmt["var"]["mt_matched"]} 个',
-            f'- 剪接层：{json.dumps(fmt["splice"], ensure_ascii=False) if fmt["splice"] else "无"}',
-            f'- 附加对象：{json.dumps(fmt["extras"], ensure_ascii=False) if fmt["extras"] else "无"}',
+            f'整数外观={_md(mat.get("integer_like"))}，max={_md(mat.get("max"))}',
+            f'- 数据层：{_md(", ".join(fmt["layers_present"])) or "无"}',
+            f'- obs 列：{_md(", ".join(item["name"] for item in fmt["obs"])) or "无"}',
+            f'- var：{_md(fmt["var"]["id_kind"])}，唯一={_md(fmt["var"]["unique"])}，'
+            f'线粒体命中 {_md(fmt["var"]["mt_matched"])} 个',
+            f'- 剪接层：{_md(json.dumps(fmt["splice"], ensure_ascii=False)) if fmt["splice"] else "无"}',
+            f'- 附加对象：{_md(json.dumps(fmt["extras"], ensure_ascii=False)) if fmt["extras"] else "无"}',
         ]))
         if fmt.get('warnings'):
             tech.append('### 2.1 格式体检发现的风险\n\n' +
-                        '\n'.join('- ' + item for item in fmt['warnings']))
+                        '\n'.join('- ' + _md(item) for item in fmt['warnings']))
     else:
         tech.append('## 2. 数据格式检查\n\n本次未生成格式体检记录（可能在读取阶段就失败）。')
 
     tech.append('## 3. 输入指纹与预处理指纹\n\n' + '\n'.join([
-        f'- 输入 SHA-256：`{prov.get("input_sha256", "未知")}`',
-        f'- 细胞 ID 哈希：`{(result or {}).get("cells_hash") or facts.get("cells_hash", "未知")}`',
-        f'- 基因 ID 哈希：`{(result or {}).get("genes_hash") or facts.get("genes_hash", "未知")}`',
-        f'- 预处理指纹：`{(result or {}).get("preprocessing_hash") or "本次方法未产生"}`',
-        f'- 先验 GRN SHA-256：`{prov.get("prior_grn_sha256") or "未使用"}`',
+        f'- 输入 SHA-256：{_inline_code(prov.get("input_sha256", "未知"))}',
+        f'- 细胞 ID 哈希：'
+        f'{_inline_code((result or {}).get("cells_hash") or facts.get("cells_hash", "未知"))}',
+        f'- 基因 ID 哈希：'
+        f'{_inline_code((result or {}).get("genes_hash") or facts.get("genes_hash", "未知"))}',
+        f'- 预处理指纹：'
+        f'{_inline_code((result or {}).get("preprocessing_hash") or "本次方法未产生")}',
+        f'- 先验 GRN SHA-256：{_inline_code(prov.get("prior_grn_sha256") or "未使用")}',
         f'- 代码指纹：`code_sha256` 记录在 provenance.json'
         f'（共 {len(prov.get("code_sha256", {}))} 个文件）。',
     ]))
 
-    tech.append('## 4. 超参数快照\n\n```json\n' +
-                json.dumps({key: value for key, value in config.items() if key != 'grn_path'},
-                           ensure_ascii=False, indent=2) +
-                '\n```\n\n完整配置（含 GRN 路径）：`config.json`。')
+    tech.append('## 4. 超参数快照\n\n' +
+                _fenced(json.dumps({key: value for key, value in config.items()
+                                    if key != 'grn_path'},
+                                   ensure_ascii=False, indent=2), lang='json') +
+                '\n\n完整配置（含 GRN 路径）：`config.json`。')
 
     calls_path = folder / 'calls.json'
     if calls_path.exists():
@@ -1550,7 +1807,8 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
                 arguments = json.dumps(call.get('arguments', {}), ensure_ascii=False)
                 if len(arguments) > 160:
                     arguments = arguments[:157] + '...'
-                rows.append(f'| {index} | `{call.get("function")}` | `{arguments}` |')
+                rows.append(f'| {index} | {_inline_code(call.get("function"))} | '
+                            f'{_inline_code(arguments)} |')
             tech.append('## 5. 真实调用序列\n\n共记录 ' + str(len(calls)) + ' 次函数调用'
                         '（含安装版本签名，见 `calls.json`）。\n\n' + '\n'.join(rows))
         except Exception:
@@ -1560,18 +1818,19 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
                     '（可能是质控/演示方法，或在读取阶段就已失败）。')
 
     tech.append('## 6. 耗时、状态与随机性\n\n' + '\n'.join([
-        f'- 开始：{prov.get("started_at", "未知")}',
-        f'- 结束：{prov.get("finished_at", "未知")}',
-        f'- 耗时：{prov.get("elapsed_seconds", "未知")} 秒（含解释器启动与图形导出）',
-        f'- 状态：{prov.get("status", status)}',
-        f'- 随机种子：{prov.get("seed", "未知")}（同时用于 PCA/UMAP/分群）',
+        f'- 开始：{_md(prov.get("started_at", "未知"))}',
+        f'- 结束：{_md(prov.get("finished_at", "未知"))}',
+        f'- 耗时：{_md(prov.get("elapsed_seconds", "未知"))} 秒（含解释器启动与图形导出）',
+        f'- 状态：{_md(prov.get("status", status))}',
+        f'- 随机种子：{_md(prov.get("seed", "未知"))}（同时用于 PCA/UMAP/分群）',
         '- 固定种子不保证逐字节相同：并行调度、线性代数后端与平台差异都会带来数值差异。',
     ]))
 
     tech.append('## 7. 复现方式\n\n'
-                f'1. 切到本次保存的源码目录：`{prov.get("reproduce_cwd", "未知")}`\n'
-                '2. 用同一解释器与 `environment.json` 中的版本执行：\n\n```text\n'
-                + prov.get('reproduce_command', '未知') + '\n```\n'
+                f'1. 切到本次保存的源码目录：'
+                f'{_inline_code(prov.get("reproduce_cwd", "未知"))}\n'
+                '2. 用同一解释器与 `environment.json` 中的版本执行：\n\n'
+                + _fenced(prov.get('reproduce_command', '未知')) + '\n'
                 '3. 若报告状态为 failed，先看 `run.log`；修复后建议复现到新目录，不要覆盖旧结果。'
                 '\n4. `source/` 保存了本次运行时的完整源码副本，可用于对照或重放。')
 
@@ -1581,10 +1840,10 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
                  'calls.json', 'run.log', 'analysis.h5ad', 'velocity.npz', 'velocity_uncertainty.npz'):
         target = folder / name
         if target.exists():
-            files.append(f'- `{name}`（{target.stat().st_size / 1024:.0f} KB）')
+            files.append(f'- {_inline_code(name)}（{target.stat().st_size / 1024:.0f} KB）')
     figures = sorted((folder / 'figures').glob('*')) if (folder / 'figures').exists() else []
     if figures:
-        files.append('- `figures/`：' + '、'.join(path.name for path in figures))
+        files.append('- `figures/`：' + '、'.join(_md(path.name) for path in figures))
     tech.append('## 8. 结果文件清单\n\n' + ('\n'.join(files) if files else '- 本次没有生成文件。'))
 
     # 图注：与绘图使用同一份规格（优先读取落盘的 figure_specs.json）
@@ -1601,7 +1860,8 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
         caption = _figure_caption(name, result, config, index, qc=qc, specs=stored)
         captions[name] = caption
     if captions:
-        bio.append('### 4.12 图注\n\n' + '\n'.join('- ' + captions[name] for name in figure_files))
+        bio.append('### 4.12 图注\n\n' +
+                   '\n'.join('- ' + _md(captions[name]) for name in figure_files))
 
     # 先落盘 A 报告，再按**实际写出的文件**校验本地图片引用（F18：导出前校验）
     (folder / 'A_生物学分析报告.md').write_text('\n\n'.join(bio) + '\n', encoding='utf-8')
@@ -1611,15 +1871,17 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
     all_refs = sorted({ref for values in refs.values() for ref in values})
     missing = missing_report_refs(folder)
     asset_lines = [f'- HTML/Markdown 共引用 {len(all_refs)} 个本地图片：'
-                   + ('、'.join(f'`{ref}`' for ref in all_refs) if all_refs else '无')]
+                   + ('、'.join(_inline_code(ref) for ref in all_refs) if all_refs else '无')]
     if missing:
         for name, values in missing.items():
-            asset_lines.append(f'- ⚠️ `{name}` 缺失引用：' + '、'.join(f'`{ref}`' for ref in values))
+            asset_lines.append(f'- ⚠️ {_inline_code(name)} 缺失引用：'
+                               + '、'.join(_inline_code(ref) for ref in values))
     else:
         asset_lines.append('- 校验结果：全部存在，ZIP 导出后可在离线环境打开'
                            '（含 figures/ 下所有 png/svg，例如 stream.png）。')
     if (folder / 'figures' / 'figure_specs.json').exists():
-        asset_lines.append('- 图形规格（实际着色字段/色阶/坐标哈希）：`figures/figure_specs.json`。')
+        asset_lines.append('- 图形规格（实际着色字段/色阶/坐标哈希）：'
+                           '`figures/figure_specs.json`。')
     tech.append('## 8.1 导出资源完整性\n\n' + '\n'.join(asset_lines))
 
     tech.append('## 9. 保密、联网与清理\n\n' + '\n'.join([
@@ -1627,7 +1889,7 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
         '本次分析没有云端调用、不需要 API 密钥。',
         '- 安装/更新依赖、点击官方文档链接需要联网；界面上的外部入口都会标注“需联网”。',
         '- 报告与日志可能包含基因/细胞标识与本地路径，分享前请自行检查。',
-        f'- 清理本次结果：删除 `{folder.resolve()}` 即可；原始导入文件不会被修改。',
+        f'- 清理本次结果：删除 {_inline_code(folder.resolve())} 即可；原始导入文件不会被修改。',
     ]))
 
     (folder / 'B_技术与复现报告.md').write_text('\n\n'.join(tech) + '\n', encoding='utf-8')
