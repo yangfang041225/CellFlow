@@ -154,7 +154,10 @@ def _entries() -> List[Dict]:
         if isinstance(item, str):
             entries.append({'path': item, 'project': 'default'})
         elif isinstance(item, dict) and item.get('path'):
-            entries.append({'path': str(item['path']), 'project': item.get('project') or 'default'})
+            entry = dict(item)
+            entry['path'] = str(item['path'])
+            entry['project'] = item.get('project') or 'default'
+            entries.append(entry)
     return entries
 
 
@@ -166,8 +169,8 @@ def registry(project: Optional[str] = None) -> List[str]:
     return [str(Path(item['path']).resolve()) for item in entries]
 
 
-def register_dataset(path) -> None:
-    """登记到当前项目：加锁 + 原子替换 + 按规范化路径去重。"""
+def register_dataset(path, name=None, source=None) -> None:
+    """登记到当前项目：保留原始文件名/来源；加锁 + 原子替换 + 路径去重。"""
     resolved = str(Path(path).resolve())
     active = active_project()['id']
     with _REGISTRY_LOCK:
@@ -179,8 +182,21 @@ def register_dataset(path) -> None:
         for item in entries:
             if (str(Path(item['path']).resolve()) == resolved
                     and (item.get('project') or 'default') == active):
+                if name:
+                    item['name'] = str(name)
+                if source:
+                    item['source'] = str(source)
+                STORE.mkdir(parents=True, exist_ok=True)
+                tmp = DATASET_FILE.with_name(DATASET_FILE.name + '.tmp')
+                tmp.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding='utf-8')
+                os.replace(tmp, DATASET_FILE)
                 return
-        entries.append({'path': resolved, 'project': active})
+        entry = {'path': resolved, 'project': active}
+        if name:
+            entry['name'] = str(name)
+        if source:
+            entry['source'] = str(source)
+        entries.append(entry)
         STORE.mkdir(parents=True, exist_ok=True)
         tmp = DATASET_FILE.with_name(DATASET_FILE.name + '.tmp')
         tmp.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding='utf-8')
@@ -260,10 +276,16 @@ def list_datasets(project: Optional[str] = None) -> List[Dict]:
         items.append(plan)
 
     project = project or active_project()['id']
+    names = {str(Path(item['path']).resolve()): item.get('name')
+             for item in _entries() if (item.get('project') or 'default') == project}
     for path_text in registry(project=project):
         plan = _dataset_candidate(Path(path_text))
         if plan:
             plan['source'] = '我导入的'
+            original = names.get(str(Path(path_text).resolve()))
+            if original:
+                plan['label'] = str(original)
+                plan['original_name'] = str(original)
             add(plan)
     public = PUBLIC
     ignored = set(_public_ignored())

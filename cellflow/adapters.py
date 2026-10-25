@@ -141,9 +141,13 @@ def _group_labels(a, config, record, log):
     """返回分组列名。没有现成分组时自动 Leiden 分群。"""
     key = str(config.get('group_key') or '')
     if key and key != AUTO_GROUP and key in a.obs:
-        a.obs[key] = a.obs[key].astype(str).astype('category')
-        if a.obs[key].isna().any() or not 2 <= a.obs[key].nunique() <= 30:
-            raise ValueError('分组列必须完整且包含 2–30 个群；程序不会自动用别的标签替换它')
+        values = a.obs[key]
+        missing = int(values.isna().sum())
+        if missing:
+            raise ValueError(f'分组列 {key} 有 {missing} 个缺失值；请先补全，程序不会把它们并成 “None” 群')
+        a.obs[key] = values.astype(str).astype('category')
+        if not 2 <= a.obs[key].nunique() <= 30:
+            raise ValueError('分组列必须包含 2–30 个群；程序不会自动用别的标签替换它')
         return key
     key = _leiden(a, config, int(config['seed']), record, log)
     if not 2 <= a.obs[key].nunique() <= 30:

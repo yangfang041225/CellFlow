@@ -197,6 +197,21 @@ def from_10x_h5(path: Path) -> ImportResult:
     return _to_dataset(adata, notes, '10x-h5')
 
 
+def _header_extra_duplicates(path: Path, sep: str) -> int:
+    """pandas 会把重复列名改成 g1.1，因此在读取表头时先统计原始重复。"""
+    import csv
+    try:
+        with open(path, encoding='utf-8', errors='replace') as handle:
+            first = handle.readline()
+        fields = next(csv.reader([first], delimiter=sep))[1:]
+    except Exception:
+        return 0
+    seen = {}
+    for name in fields:
+        seen[name] = seen.get(name, 0) + 1
+    return sum(count - 1 for count in seen.values() if count > 1)
+
+
 def _from_table_streaming(path: Path, sep: str, chunk_rows: int = 4000, flipped=None) -> ImportResult:
     """大表分块读取：逐块转 float32 稀疏再 vstack，避免整表 DataFrame + 稠密矩阵双份峰值。"""
     import anndata as ad
@@ -220,17 +235,23 @@ def _from_table_streaming(path: Path, sep: str, chunk_rows: int = 4000, flipped=
         else:
             flipped = _shape_hint(head.shape[0], head.shape[1])
 
+    header_duplicates = _header_extra_duplicates(path, sep)
     notes = [f'按表格分块读取（分隔符 {"逗号" if sep == "," else "制表符"}，每块 {chunk_rows} 行）',
              f'文件 {info["file_mb"]} MB，按经验估算峰值约 {info["gb"]} GB（读取前已做内存检查）']
+    if header_duplicates:
+        notes.append(f'表头有 {header_duplicates} 个重复列名，pandas 已加后缀区分（原始名见文件）')
     if flipped:
         notes.append('原表是“基因 × 细胞”，已逐块转置为“细胞 × 基因”。')
         if meta_cols:
             notes.append(f'转置方向下忽略了 {len(meta_cols)} 个非数值列（它们描述的是基因轴）')
 
     blocks, cells, genes, metas = [], [], None, []
+    missing_total = 0
     for chunk in pd.read_csv(path, sep=sep, index_col=0, chunksize=chunk_rows, low_memory=False):
         if flipped:
-            numeric = chunk.apply(pd.to_numeric, errors='coerce').fillna(0.0)
+            numeric = chunk.apply(pd.to_numeric, errors='coerce')
+            missing_total += int(numeric.isna().sum().sum())
+            numeric = numeric.fillna(0.0)
             dense = numeric.to_numpy(dtype=np.float32).T
             if not cells:
                 cells = [str(name) for name in chunk.columns]
@@ -238,7 +259,9 @@ def _from_table_streaming(path: Path, sep: str, chunk_rows: int = 4000, flipped=
         else:
             if genes is None:
                 genes = [str(name) for name in numeric_cols]
-            numeric = chunk[numeric_cols].apply(pd.to_numeric, errors='coerce').fillna(0.0)
+            numeric = chunk[numeric_cols].apply(pd.to_numeric, errors='coerce')
+            missing_total += int(numeric.isna().sum().sum())
+            numeric = numeric.fillna(0.0)
             dense = numeric.to_numpy(dtype=np.float32)
             cells.extend(str(name) for name in chunk.index)
             if meta_cols:
@@ -261,10 +284,24 @@ def _from_table_streaming(path: Path, sep: str, chunk_rows: int = 4000, flipped=
         for column in meta.columns:
             adata.obs[str(column)] = meta[column].astype(str).to_numpy()
         notes.append(f'识别到 {len(meta.columns)} 个非数值列（当作元数据，如 barcode/cluster）')
+    duplicate_genes = int(pd.Index(genes or []).duplicated().sum())
+    duplicate_cells = int(pd.Index(cells).duplicated().sum())
     adata.var_names_make_unique()
     adata.obs_names_make_unique()
+    if missing_total:
+        notes.append(f'表达矩阵有 {missing_total} 个缺失/非数值单元，已按 0 读取（会改变观测含义，请在源头补全）')
+    if duplicate_genes:
+        notes.append(f'{duplicate_genes} 个重复基因名已加后缀区分（原始名未丢失，见 import 记录）')
+    if duplicate_cells:
+        notes.append(f'{duplicate_cells} 个重复细胞 ID 已加后缀区分')
     result = _to_dataset(adata, notes, 'table')
     result.transposed = flipped or result.transposed
+    result.dataset.extras['import'].update({
+        'missing_values_filled': missing_total,
+        'duplicate_genes_renamed': duplicate_genes,
+        'duplicate_cells_renamed': duplicate_cells,
+        'duplicate_header_names': header_duplicates,
+    })
     return result
 
 
@@ -281,6 +318,7 @@ def from_table(path: Path) -> ImportResult:
     frame = pd.read_csv(path, sep=sep, index_col=0, low_memory=False)
     from .memory import estimate
     info = estimate(path)
+    header_duplicates = _header_extra_duplicates(path, sep)
     notes = [f'按表格读取（分隔符 {"逗号" if sep == "," else "制表符"}），',
              f'原表 {frame.shape[0]} 行 × {frame.shape[1]} 列',
              f'文件 {info["file_mb"]} MB，按经验估算峰值约 {info["gb"]} GB（读取前已做内存检查）']
@@ -306,18 +344,42 @@ def from_table(path: Path) -> ImportResult:
     if num.shape[1] < 5:
         raise ValueError('表格里没找到足够的数值列（基因数 < 5）；'
                          '请确认表格是表达矩阵，而不是分组信息表')
-    matrix = num.apply(pd.to_numeric, errors='coerce').fillna(0.0).astype(np.float32)
+    numeric = num.apply(pd.to_numeric, errors='coerce')
+    missing_total = int(numeric.isna().sum().sum())
+    matrix = numeric.fillna(0.0).astype(np.float32)
     adata = ad.AnnData(X=sparse.csr_matrix(matrix.to_numpy()),
                        obs=pd.DataFrame(index=pd.Index(frame.index.astype(str), dtype=str)),
                        var=pd.DataFrame(index=pd.Index([str(c) for c in matrix.columns], dtype=str)))
+    meta_missing = 0
     for column in meta_cols:
-        adata.obs[str(column)] = meta[column].astype(str).to_numpy()
+        values = meta[column]
+        meta_missing += int(values.isna().sum())
+        adata.obs[str(column)] = values.astype(object).where(values.notna(), None).to_numpy()
     if meta_cols:
         notes.append(f'识别到 {len(meta_cols)} 个非数值列（当作元数据，如 barcode/cluster）')
+    if missing_total:
+        notes.append(f'表达矩阵有 {missing_total} 个缺失/非数值单元，已按 0 读取（会改变观测含义，请在源头补全）')
+    if meta_missing:
+        notes.append(f'元数据有 {meta_missing} 个缺失值，保留为空值，不会变成 “None”/“nan” 类别')
+    duplicate_genes = int(pd.Index([str(c) for c in matrix.columns]).duplicated().sum())
+    duplicate_cells = int(pd.Index(frame.index.astype(str)).duplicated().sum())
+    if duplicate_genes:
+        notes.append(f'{duplicate_genes} 个重复基因名已加后缀区分')
+    if duplicate_cells:
+        notes.append(f'{duplicate_cells} 个重复细胞 ID 已加后缀区分')
+    if header_duplicates:
+        notes.append(f'表头有 {header_duplicates} 个重复列名，pandas 已加后缀区分（原始名见文件）')
     adata.var_names_make_unique()
     adata.obs_names_make_unique()
     result = _to_dataset(adata, notes, 'table')
     result.transposed = flipped or result.transposed
+    result.dataset.extras['import'].update({
+        'missing_values_filled': missing_total,
+        'metadata_missing': meta_missing,
+        'duplicate_genes_renamed': duplicate_genes,
+        'duplicate_cells_renamed': duplicate_cells,
+        'duplicate_header_names': header_duplicates,
+    })
     return result
 
 

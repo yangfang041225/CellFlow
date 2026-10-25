@@ -222,7 +222,15 @@ def datasets():
     return {'datasets': _dataset_rows()}
 
 
-ALLOWED_SUFFIX = {'.h5ad', '.loom', '.h5', '.csv', '.tsv', '.txt', '.mtx', '.zip', '.gz', '.tgz'}
+ALLOWED_SUFFIX = {'.h5ad', '.loom', '.h5', '.csv', '.tsv', '.txt', '.mtx', '.zip', '.gz', '.tgz', '.tar'}
+ALLOWED_COMPOUND = ('.csv.gz', '.tsv.gz', '.txt.gz', '.tar.gz')
+
+
+def _upload_suffix_ok(name: str) -> bool:
+    low = (name or '').lower()
+    if low.endswith(ALLOWED_COMPOUND):
+        return True
+    return Path(low).suffix in ALLOWED_SUFFIX
 MAX_UPLOAD_BYTES = 1024 * 1024 * 1024
 
 
@@ -231,9 +239,13 @@ async def upload(file: UploadFile):
     """流式落盘 + 边写边限流：超限立即中止，不把整个文件读进内存。"""
     import uuid
 
-    suffix = Path(file.filename or 'data').suffix.lower()
-    if suffix not in ALLOWED_SUFFIX:
+    filename = file.filename or 'data'
+    if not _upload_suffix_ok(filename):
+        suffix = Path(filename).suffix.lower()
         raise HTTPException(415, f'不支持的格式：{suffix or "无扩展名"}')
+    low = filename.lower()
+    compound = next((item for item in ALLOWED_COMPOUND if low.endswith(item)), None)
+    suffix = compound or Path(low).suffix
     target_dir = ROOT / 'results' / 'inputs'
     target_dir.mkdir(parents=True, exist_ok=True)
     temporary = target_dir / f'.upload-{uuid.uuid4().hex}{suffix}'
@@ -265,8 +277,8 @@ async def upload(file: UploadFile):
     except Exception as exc:
         target.unlink(missing_ok=True)
         raise HTTPException(400, f'无法解析这个文件：{type(exc).__name__}: {exc}')
-    workspace.register_dataset(target)
-    return {'ok': True, 'path': str(target), 'id': _dataset_id(target)}
+    workspace.register_dataset(target, name=filename, source='上传')
+    return {'ok': True, 'path': str(target), 'id': _dataset_id(target), 'name': filename}
 
 
 @app.delete('/api/datasets/{dataset_id}')
