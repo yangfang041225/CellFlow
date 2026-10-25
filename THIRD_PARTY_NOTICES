@@ -1,0 +1,56 @@
+# THIRD_PARTY_NOTICES
+
+CellFlow 本身是本地科研工具；以下第三方组件按各自许可证使用。
+版本为 2026-10-25 本机实际安装版本（主环境，另有 `.venv-velovi` 隔离环境）。
+
+## Python
+
+| 组件 | 版本 | 许可证 | 用途 | 备注 |
+|---|---|---|---|---|
+| Streamlit | 1.66.1 | Apache-2.0 | 回退界面 | 迁移期保留 |
+| FastAPI | 0.162.0 | MIT | 本机 HTTP API | |
+| Uvicorn | 0.54.0 | BSD-3-Clause | ASGI 服务器 | |
+| Pydantic | 2.14.1 | MIT | 请求模型校验 | |
+| python-multipart | 0.0.32 | Apache-2.0 | 上传表单解析 | |
+| Python-Markdown | 3.11.2 | BSD-3-Clause | 报告 Markdown → HTML/PDF | |
+| PySide6 / shiboken6 | 6.12.0 | LGPL-3.0（或商业许可） | 原生窗口 + QtWebEngine | 分发需遵守 LGPL（动态链接、提供替换方式） |
+| pywebview | 6.2.1 | BSD-3-Clause | 可选回退窗口 | 默认不用 |
+| anndata | 0.12.19 | BSD-3-Clause | h5ad 数据模型 | |
+| scanpy | 1.11.5 | BSD-3-Clause | QC/降维/聚类/PAGA/DPT | |
+| scVelo | 0.3.4 | BSD-3-Clause | RNA velocity | |
+| CellRank | 2.0.7 | BSD-3-Clause | 命运概率 | 最后一个支持 py3.11 的版本 |
+| scvi-tools（隔离环境） | 1.2.0 | BSD-3-Clause | veloVI | `.venv-velovi` |
+| scvi-tools 依赖（隔离环境） | 见 lock | 各自许可证 | torch/jax/lightning 等 | |
+| igraph | 0.11.9 | GPL-2.0-or-later | Leiden 图算法 | 通过 scanpy 调用 |
+| numpy | 2.2.6 | BSD-3-Clause | 数值计算 | |
+| scipy | 1.15.3 | BSD-3-Clause | 稀疏线性代数 | |
+| pandas | 2.3.3 | BSD-3-Clause | 表格 | |
+| h5py | 3.16.0 | BSD-3-Clause | HDF5 读写 | |
+| matplotlib | 3.11.2 | PSF/BSD 兼容 | 图形后端 | |
+| plotly | 6.9.0 | MIT | 交互图 | |
+| numba | 0.68.0 | BSD-2-Clause | 加速 | |
+
+## 前端（web/）
+
+| 组件 | 版本 | 许可证 | 用途 |
+|---|---|---|---|
+| React / ReactDOM | 18.3.1 | MIT | UI 框架 |
+| @blueprintjs/core / icons / table | 6.21.0 / 6.4.0 / 6.3.0 | Apache-2.0 | 组件库 |
+| dockview / dockview-react | 8.6.1 | MIT | 可调面板 |
+| marked | 15.0.12 | MIT | Markdown 渲染（输出经 DOMPurify 清洗） |
+| DOMPurify | 3.4.17 | Apache-2.0 或 MPL-2.0 | HTML 清洗 |
+| Vite / @vitejs/plugin-react | 6.0.7 / 4.3.4 | MIT | 构建 |
+| TypeScript | 5.6.3 | Apache-2.0 | 类型检查 |
+
+## 公开数据
+
+- GEO / NCBI 数据：按 NCBI 使用条款，引用原始 accession。
+- CELLxGENE Discover：代码 MIT，数据 CC-BY（使用时需注明来源）。
+- 下载的数据集版权与使用许可归原数据提供者；CellFlow 只做本地转换，不做再分发。
+
+## 许可义务提示
+
+1. PySide6 为 LGPL-3.0：若对外分发安装包，需保留许可证文本、允许用户替换 Qt 库（动态链接即可），
+   并在“关于”中说明使用的 Qt 版本。
+2. igraph 为 GPL-2.0-or-later：通过 scanpy 间接调用；若整体再分发，需评估 GPL 传染性。
+3. 本文件不是法律意见；正式对外发布前应做完整依赖许可证审计。

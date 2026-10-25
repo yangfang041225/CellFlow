@@ -1,0 +1,5 @@
+﻿{"method":"auto","seed":42,"n_top_genes":100,"n_neighbors":15,"n_pcs":20,"min_shared_counts":10,
+ "max_iter":2,"max_epochs":2,"raw_x_confirmed":true,"raw_su_confirmed":true,"mt_prefix":"MT-",
+ "species":"模拟物种","tissue":"模拟系统","sample_key":"sample","group_key":"group",
+ "root_cell":"demo_cell_000","root_reason":"模拟生成器已知起点，仅供教学","use_umap":true,
+ "leiden_resolution":1.0,"cellrank_n_states":3}

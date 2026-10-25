@@ -1,0 +1,42 @@
+﻿# Python 环境与缓存
+.venv/
+.venv-*/
+.runtimes/
+.cache/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# 本地数据、结果、日志（含个人数据，禁止上传）
+data/
+results/
+logs/
+installation.json
+*.sqlite
+*.sqlite3
+*.log
+
+# 前端依赖与构建产物
+web/node_modules/
+web/dist/
+
+# 临时文件与本地备份
+.tmp/
+tmp*/
+pip-*/
+pip-build-tracker-*/
+pip-ephem-wheel-cache-*/
+sample-run/
+verification/
+legacy_launchers/
+legacy_ui/
+_backup*/
+.streamlit/
+*.bak
+*.repair
+
+# 凭据（永远不要提交）
+.env
+.env.*
+*.key
+*.pem

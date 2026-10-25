@@ -1,0 +1,16 @@
+# 可选：veloVI（scvi-tools 的 VELOVI 模型），必须装在独立环境 .venv-velovi。
+# 原因：scvi-tools 1.2 要求 numpy<2，与主环境（numpy 2.x）不兼容。
+#
+# 安装顺序（install.py --include-velovi 会自动做）：
+#   1) uv venv --python 3.11 .venv-velovi
+#   2) uv pip install --python .venv-velovi/... torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu
+#   3) uv pip install --python .venv-velovi/... -r requirements-velovi.txt
+#
+# 有 NVIDIA 显卡时把第 2 步的 index-url 换成 https://download.pytorch.org/whl/cu124，
+# 程序会自动检测 CUDA 并切到 GPU（界面「计算设备」选 GPU 或 auto）。
+scvi-tools==1.2.0
+numpy<2
+anndata>=0.10.8,<0.12
+scanpy>=1.10,<1.12
+scvelo>=0.3.3,<0.4
+igraph>=0.11,<0.12

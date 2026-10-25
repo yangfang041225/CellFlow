@@ -1,0 +1,16 @@
+# Official RegVelo 0.4.2 has scvi-tools<1.2.1, torch<2.6 and scipy<1.16.
+regvelo==0.4.2
+numpy>=1.26,<2
+anndata>=0.10.8,<0.12
+scanpy>=1.10.3,<1.12
+scvelo>=0.3.3,<0.4
+scipy>=1.13,<1.16
+scvi-tools==1.2.0
+torch>=2.5,<2.6
+# Keep the JAX stack contemporary with this scvi-tools generation.
+jax==0.4.35
+jaxlib==0.4.35
+flax==0.10.2
+optax==0.2.4
+chex==0.1.88
+orbax-checkpoint==0.10.2

@@ -1,0 +1,8 @@
+{
+  "method": "demo",
+  "seed": 42,
+  "raw_x_confirmed": true,
+  "raw_su_confirmed": true,
+  "species": "模拟物种",
+  "tissue": "模拟系统"
+}
