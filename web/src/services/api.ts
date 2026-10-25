@@ -1,3 +1,5 @@
+import { requestJson } from './net';
+
 export type Dataset = {
   id: string; path: string; label: string; source: string; kind: string; size: string; mtime: number;
 };
@@ -52,6 +54,13 @@ export type EnvInfo = {
   queue: Record<string, number>;
 };
 
+/** 后端 downloads.list_tasks() 的返回项（含创建时间，用于失败后再核对）。 */
+export type DownloadTask = {
+  id: string; source: string; identifier: string; project?: string;
+  state: string; done: number; total: number; message: string;
+  path: string; error: string; created: number; updated: number;
+};
+
 export type RunDetail = {
   id: string; method: string; method_label: string; state: string; error: string;
   submitted: number; updated: number; output: string; input: string; dataset?: string;
@@ -90,20 +99,12 @@ export type RunCompare = {
   };
 };
 
-async function request<T>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(url, options);
-  if (!response.ok) {
-    let detail = `${response.status} ${response.statusText}`;
-    try {
-      const body = await response.json();
-      detail = body.detail || detail;
-    } catch {
-      /* ignore */
-    }
-    throw new Error(detail);
-  }
-  return response.json() as Promise<T>;
-}
+// 统一走 services/net.ts：
+//   - fetch 抛出的 TypeError('Failed to fetch') 被转成可判断的 ApiRequestError(kind='transport')，
+//     界面据此显示「本机服务不可达」，而不是把浏览器原始英文回显给用户；
+//   - HTTP 非 2xx 保留后端 detail 与状态码（kind='http'）；
+//   - AbortError 原样抛出，取消逻辑不变。
+const request = requestJson;
 
 // 可选 AbortSignal：调用方切换数据/任务时取消旧请求，避免旧响应覆盖新上下文。
 function signalOptions(signal?: AbortSignal): RequestInit | undefined {
@@ -162,9 +163,12 @@ export const api = {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source, identifier }),
     }),
+  // GET 幂等：POST 在传输层失败后用它核对任务是否其实已经建好，
+  // 避免盲目重发一次会重复建任务的 POST。
+  downloads: () => request<{ downloads: DownloadTask[] }>('/api/downloads'),
   downloadStatus: (id: string) => request<{
     id: string; state: string; done: number; total: number;
-    message: string; path: string; error: string;
+    message: string; path: string; error: string; created?: number; updated?: number;
   }>(`/api/downloads/${id}`),
   cancelDownload: (id: string) =>
     request<{ ok: boolean; message: string }>(`/api/downloads/${id}/cancel`, { method: 'POST' }),

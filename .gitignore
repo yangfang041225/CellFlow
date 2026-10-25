@@ -1,4 +1,4 @@
-﻿# Python 环境与缓存
+# Python 环境与缓存
 .venv/
 .venv-*/
 .runtimes/
@@ -19,6 +19,8 @@ installation.json
 # 前端依赖与构建产物
 web/node_modules/
 web/dist/
+# 单元测试的临时编译输出（npm test 生成）
+web/.tmp-test/
 
 # 临时文件与本地备份
 .tmp/
@@ -28,6 +30,8 @@ pip-build-tracker-*/
 pip-ephem-wheel-cache-*/
 sample-run/
 verification/
+# 本地故障复现/验收脚本与日志（只在本机使用，不进入仓库）
+tools/_hotfix/
 legacy_launchers/
 legacy_ui/
 _backup*/

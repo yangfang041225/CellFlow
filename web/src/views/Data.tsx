@@ -4,6 +4,10 @@ import {
 } from '@blueprintjs/core';
 import { api, Dataset, Inspect, Meta } from '../services/api';
 import { createTracker, isAbortError } from '../services/async';
+import { classifyFailure, isTransientFailure } from '../services/net';
+import {
+  createDownloadMonitor, DownloadMonitor, lostMessage, transientFailureMessage,
+} from '../services/download-monitor';
 import {
   Declaration, datasetVersionKey, forgetDownload, lastDownload, rememberDownload,
 } from '../services/context';
@@ -31,6 +35,8 @@ export function DataView(props: {
   const [publicId, setPublicId] = useState('');
   const [publicSource, setPublicSource] = useState<'geo' | 'cellxgene'>('geo');
   const [download, setDownload] = useState<DownloadStatus | null>(null);
+  // 轮询与本地服务失联中：任务仍然保留，只是显示的不是最新进度。
+  const [stalled, setStalled] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const inspectTracker = useRef(createTracker()).current;
 
@@ -56,45 +62,73 @@ export function DataView(props: {
   }, [version, dataset?.path, declaration.rawX, declaration.rawSU]);
 
   // 下载状态：离开本页后重新进入仍能恢复（F31）。
-  const pollRef = useRef<number | null>(null);
+  //
+  // 修复的缺陷：旧实现用 setInterval(800ms)，任何一次异常都会
+  //   stopPolling() + forgetDownload() + setDownload(null)，
+  // 于是一次本机服务抖动就让一个仍在后台下载的任务从界面上消失，
+  // 用户看到的是失败，实际上文件还在下载。
+  // 现在由 download-monitor 状态机区分：暂时失联（保留任务并重试）、
+  // 任务确实不存在（才清除记录）、业务错误（停止并提示）。
   const downloadIdRef = useRef('');
+  const downloadHandlers = useRef({ notify, refresh });
+  downloadHandlers.current = { notify, refresh };
+  const monitorRef = useRef<DownloadMonitor<DownloadStatus> | null>(null);
+  if (monitorRef.current === null) {
+    monitorRef.current = createDownloadMonitor<DownloadStatus>({
+      fetchStatus: (id) => api.downloadStatus(id),
+      isTerminal: (status) => TERMINAL_STATES.includes(status.state),
+      classifyFailure,
+      intervalMs: 800,
+      onEvent: (event) => {
+        const handlers = downloadHandlers.current;
+        if (event.type === 'status') {
+          setDownload(event.status);
+          setStalled(false);
+          if (!TERMINAL_STATES.includes(event.status.state)) return;
+          if (event.status.state === 'done') {
+            handlers.refresh();
+            handlers.notify('ok', `下载完成：${event.status.path}`);
+          } else if (event.status.state === 'failed') {
+            forgetDownload();
+            handlers.notify('bad', `下载失败：${event.status.error}`);
+          } else {
+            forgetDownload();
+            handlers.notify('warn', '下载已取消');
+          }
+          return;
+        }
+        if (event.type === 'retry') {
+          setStalled(true);
+          setDownload((previous) => (previous && previous.id === downloadIdRef.current
+            ? { ...previous, message: transientFailureMessage(event.failures) }
+            : previous));
+          return;
+        }
+        if (event.type === 'gone') {
+          // 只有“任务确实不存在”才清除记录（服务重启后状态会被标记为中断）。
+          downloadIdRef.current = '';
+          forgetDownload();
+          setStalled(false);
+          setDownload(null);
+          handlers.notify('bad',
+            '下载任务状态已不存在（本机服务可能重启过）。若文件已下载完成，请刷新数据集列表。');
+          return;
+        }
+        setStalled(true);
+        if (event.type === 'lost') handlers.notify('warn', lostMessage(event.failures));
+        else handlers.notify('bad', `下载状态读取失败：${event.error}`);
+      },
+    });
+  }
 
   const stopPolling = () => {
-    if (pollRef.current) {
-      window.clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
+    monitorRef.current?.stop();
+    downloadIdRef.current = '';
   };
 
   const pollDownload = (id: string) => {
-    stopPolling();
     downloadIdRef.current = id;
-    pollRef.current = window.setInterval(async () => {
-      try {
-        const status = await api.downloadStatus(id);
-        if (downloadIdRef.current !== id) return; // 已经不是当前下载
-        setDownload(status);
-        if (TERMINAL_STATES.includes(status.state)) {
-          stopPolling();
-          if (status.state === 'done') {
-            refresh();
-            notify('ok', `下载完成：${status.path}`);
-          } else if (status.state === 'failed') {
-            forgetDownload();
-            notify('bad', `下载失败：${status.error}`);
-          } else {
-            forgetDownload();
-            notify('warn', '下载已取消');
-          }
-        }
-      } catch (exc) {
-        if (downloadIdRef.current !== id) return;
-        stopPolling();
-        forgetDownload();
-        setDownload(null);
-        notify('bad', `下载状态读取失败：${exc}`);
-      }
-    }, 800);
+    monitorRef.current?.start(id);
   };
 
   useEffect(() => {
@@ -113,10 +147,17 @@ export function DataView(props: {
         else if (status.state === 'done') refresh(); // 让新下载的数据集出现在列表里
         else if (status.state === 'failed' || status.state === 'cancelled') forgetDownload();
       })
-      .catch(() => {
+      .catch((exc) => {
         if (cancelled) return;
-        forgetDownload();
-        setDownload(null);
+        // 只有任务确实不存在才丢弃记录；暂时失联要保留，用户重进本页还能恢复。
+        if (classifyFailure(exc) === 'missing') {
+          forgetDownload();
+          setDownload(null);
+          notify('warn', '上次的下载任务已不存在（本机服务可能重启过）。');
+        } else {
+          setStalled(true);
+          notify('warn', `暂时读不到上次下载的状态：${exc}`);
+        }
       });
     return () => {
       cancelled = true;
@@ -146,9 +187,30 @@ export function DataView(props: {
     onSelect(match.id);
   };
 
+  // 对账：POST 在传输层失败时，用幂等的 GET 判断任务是否其实已经创建。
+  // 绝不重发 POST —— 那可能让同一份数据被创建成两个任务、下两遍。
+  const reconcileDownload = async (
+    source: string, identifier: string,
+  ): Promise<DownloadStatus | null> => {
+    try {
+      const listing = await api.downloads();
+      const fresh = listing.downloads.filter((task) => task.source === source
+        && task.identifier === identifier
+        && Date.now() / 1000 - task.created < 120);
+      if (!fresh.length) return null;
+      const newest = fresh.reduce((a, b) => (a.created >= b.created ? a : b));
+      return {
+        id: newest.id, state: newest.state, done: newest.done, total: newest.total,
+        message: newest.message, path: newest.path, error: newest.error,
+      };
+    } catch {
+      return null;
+    }
+  };
+
   const usePublic = async () => {
     stopPolling();
-    downloadIdRef.current = '';
+    setStalled(false);
     try {
       const started = await api.startDownload(publicSource, publicId);
       setDownload({
@@ -161,6 +223,18 @@ export function DataView(props: {
       notify('ok', '下载已在后台开始，可以继续用其他页面；重新进入本页会恢复显示进度');
       pollDownload(started.id);
     } catch (exc) {
+      if (isTransientFailure(exc)) {
+        const adopted = await reconcileDownload(publicSource, publicId);
+        if (adopted) {
+          setDownload(adopted);
+          rememberDownload({
+            id: adopted.id, startedAt: Date.now(), source: publicSource, identifier: publicId,
+          });
+          notify('warn', '请求被中断，但下载任务已在后台创建；继续显示它的进度。');
+          pollDownload(adopted.id);
+          return;
+        }
+      }
       notify('bad', `无法开始下载：${exc}`);
     }
   };
@@ -235,6 +309,15 @@ export function DataView(props: {
                     {download.message || download.state}
                     {download.total ? ` · ${(download.done / 1024 / 1024).toFixed(1)} / ${(download.total / 1024 / 1024).toFixed(1)} MB` : ''}
                   </div>
+                  {stalled ? (
+                    <Callout compact intent="warning" style={{ marginTop: 6, fontSize: 12 }}>
+                      与本地服务的连接中断：下载任务仍在后台运行，这里显示的是最后一次读到的状态。
+                      <Button small minimal icon="refresh" style={{ marginLeft: 8 }}
+                              onClick={() => { setStalled(false); pollDownload(download.id); }}>
+                        重新读取状态
+                      </Button>
+                    </Callout>
+                  ) : null}
                   {ACTIVE_STATES.includes(download.state) ? (
                     <Button small minimal intent="danger" style={{ marginTop: 4 }}
                             onClick={async () => {
