@@ -192,58 +192,80 @@ def _publish(outdir, result: Path) -> Path:
     return final
 
 
+def _fail(task_id, exc):
+    """线程内任何阶段的异常都落到任务记录里，绝不留下“永远排队”的幽灵任务。"""
+    _update(task_id, state='failed', error=f'{type(exc).__name__}: {exc}',
+            message='下载失败')
+
+
 def _run(task_id, outdir, fetch_func=None):
-    from .publicdata import DownloadCancelled, fetch as default_fetch, set_download_hook
+    """后台线程入口。
 
-    task = get(task_id)
-    if task is None:
-        return
-    if task.get('cancel'):
-        _update(task_id, state='cancelled', message='已取消')
-        return
-
+    修复的缺陷：旧版把「导入 publicdata」「读取任务」「创建临时目录」放在
+    try/except 之外。这些步骤一旦失败（目录不可写、磁盘满、依赖缺失、
+    进程回收临时目录），线程直接结束，任务永远停在 queued：
+    界面会一直显示“排队中”，既不报错也不会结束，用户只能重启软件。
+    现在准备工作与下载本身都在同一层异常处理内。
+    """
     staging = Path(outdir) / '.downloads' / task_id
-    staging.mkdir(parents=True, exist_ok=True)
-    fetch = fetch_func or default_fetch
-
-    def should_cancel():
-        current = get(task_id) or {}
-        return bool(current.get('cancel'))
-
-    def byte_progress(done, total):
-        _update(task_id, done=int(done), total=int(total or 0))
-
-    def message_progress(message):
-        _update(task_id, message=str(message))
-
-    set_download_hook(byte_progress, should_cancel)
-    _update(task_id, state='running', message='开始下载')
+    restore_hook = None
     try:
-        result = Path(fetch(task['source'], task['identifier'], staging,
-                            progress=message_progress))
-        if not result.is_file():
-            raise RuntimeError('下载接口没有产出文件')
-        species_filtered = None
-        meta_path = result.with_name(result.name + '.meta.json')
-        if meta_path.is_file():
-            try:
-                species_filtered = json.loads(meta_path.read_text(encoding='utf-8'))
-            except Exception:
-                species_filtered = None
-        final = _publish(outdir, result)
-        if species_filtered:
-            _update(task_id, species_filtered=species_filtered)
-        for leftover in staging.rglob('*'):
-            if leftover.is_file():
-                leftover.unlink(missing_ok=True)
-        _update(task_id, state='done', path=str(final), message='完成',
-                done=final.stat().st_size, total=final.stat().st_size)
-    except DownloadCancelled:
-        _update(task_id, state='cancelled', message='已取消')
+        from . import publicdata
+        restore_hook = publicdata.set_download_hook
+
+        task = get(task_id)
+        if task is None:
+            return
+        if task.get('cancel'):
+            _update(task_id, state='cancelled', message='已取消')
+            return
+
+        staging.mkdir(parents=True, exist_ok=True)
+        fetch = fetch_func or publicdata.fetch
+
+        def should_cancel():
+            current = get(task_id) or {}
+            return bool(current.get('cancel'))
+
+        def byte_progress(done, total):
+            _update(task_id, done=int(done), total=int(total or 0))
+
+        def message_progress(message):
+            _update(task_id, message=str(message))
+
+        restore_hook(byte_progress, should_cancel)
+        _update(task_id, state='running', message='开始下载')
+        try:
+            result = Path(fetch(task['source'], task['identifier'], staging,
+                                progress=message_progress))
+            if not result.is_file():
+                raise RuntimeError('下载接口没有产出文件')
+            species_filtered = None
+            meta_path = result.with_name(result.name + '.meta.json')
+            if meta_path.is_file():
+                try:
+                    species_filtered = json.loads(meta_path.read_text(encoding='utf-8'))
+                except Exception:
+                    species_filtered = None
+            final = _publish(outdir, result)
+            if species_filtered:
+                _update(task_id, species_filtered=species_filtered)
+            for leftover in staging.rglob('*'):
+                if leftover.is_file():
+                    leftover.unlink(missing_ok=True)
+            _update(task_id, state='done', path=str(final), message='完成',
+                    done=final.stat().st_size, total=final.stat().st_size)
+        except publicdata.DownloadCancelled:
+            _update(task_id, state='cancelled', message='已取消')
+        except Exception as exc:
+            _fail(task_id, exc)
     except Exception as exc:
-        _update(task_id, state='failed', error=f'{type(exc).__name__}: {exc}',
-                message='下载失败')
+        _fail(task_id, exc)
     finally:
-        set_download_hook(None, None)
+        if restore_hook is not None:
+            try:
+                restore_hook(None, None)
+            except Exception:
+                pass
         shutil.rmtree(staging, ignore_errors=True)
         _persist(outdir, force=True)

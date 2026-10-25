@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "tsc -p tsconfig.test.json && node --test tests/net.test.mjs"
   },
   "dependencies": {
     "@blueprintjs/core": "^6.21.0",
