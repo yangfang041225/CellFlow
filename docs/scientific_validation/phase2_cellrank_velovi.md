@@ -2,7 +2,7 @@
 
 日期：2026-10-26
 基线：PR #1 `4fcb61f`；分支 `phase2/scientific-validation`
-状态：**P0-4 完成（自动终末 + 固定终末）；P1 仅完成短训练诊断与多种子，不声称收敛**
+状态：**P0-4 完成（自动/固定终末均已用独立预处理对照）；P1 完成 20-epoch 诊断，仍不声称收敛**
 
 ---
 
@@ -57,9 +57,23 @@ CellRank：`PseudotimeKernel` → `GPCCA` → `predict_terminal_states` →
   --output data\benchmarks\compare_cellrank_fixed --terminal Beta,Alpha
 ```
 
+### 独立预处理对照
+
+`benchmarks/compare_cellrank_independent.py` 不再共享 `analysis.h5ad`：参考进程从原始
+`pancreas_subset.h5ad` 重新执行 normalize_total/log1p/HVG(seurat)/PCA/neighbors/UMAP/DPT，
+再跑官方 CellRank。结果：
+
+| 模式 | 终末类别 | 最大概率差 | 吸收残差 |
+|---|---|---|---:|---:|
+| 自动 | 5 类，双方一致 | **0.0** | **3.33e-16** |
+| 固定 Beta,Alpha | 2 类，双方一致 | **0.0** | **4.44e-16** |
+
+这说明此前“共享 analysis.h5ad”的限制已解除；**预处理链本身**也能复现相同的终末状态与命运概率。
+
 ### 边界（必须保留）
 
-- 自动终末与固定终末都已对照；但两者都基于同一份预处理 `analysis.h5ad`。
+- 预处理是“同一套步骤的独立实现”，不是不同软件版本/不同参数下的泛化测试。
+- 终末类别仍只是 GPCCA 在图上的识别，不是谱系追踪。
 - 参考与候选共享同一份预处理 `analysis.h5ad`，因此这次对照**只证明 CellRank
   计算与吸收求解一致**，不证明预处理/DPT 本身独立正确。
 - 5 个终末类别来自 GPCCA 在细胞图上的识别，**不是**生物学谱系验证。
@@ -79,6 +93,22 @@ CellRank：`PseudotimeKernel` → `GPCCA` → `predict_terminal_states` →
 
 脚本：`benchmarks/velovi_diagnostics.py`。每个种子在 `.venv-velovi`（scvi-tools 1.2.0 /
 torch 2.5.1+cpu）中独立子进程运行，`max_epochs=2`，其余参数固定。
+
+### 20-epoch 短训练（seed 42）
+
+为判断“2 epochs 是否只是没训练够”，对 seed 42 追加 20 epochs（仍不足收敛）：
+
+| 项 | 2 epochs | 20 epochs |
+|---|---:|---:|
+| elbo_train_final | 263,638.03 | **153,519.36** |
+| elbo_validation_final | 未保存 | **223,909.67** |
+| epochs_ran | 2 | 20 |
+| budget_exhausted | 是 | 是 |
+| 训练/验证历史 | 有限 | 有限，20 条 |
+| convergence_status | not_assessed | not_assessed |
+
+训练与验证 ELBO 仍在下降（train: 274,809 → 153,519；validation: 383,171 → 223,909），
+说明 **20 epochs 仍未收敛**；`budget_exhausted=true`。不能把“跑满预算”当作收敛。
 
 | 种子 | epochs | elbo_train_final | 后验不确定性文件 | std 形状 | std 均值 | std 中位 | std 最大 | 有限 |
 |---:|---:|---:|---|---:|---:|---:|---:|---|

@@ -69,6 +69,10 @@
 - 最大绝对概率差：**0.0**
 - 吸收方程残差：**3.33e-16**
 
+**独立预处理对照**：参考进程从原始子集重新执行 normalize_total/log1p/HVG/PCA/
+neighbors/DPT，不再共享 `analysis.h5ad`；自动终末仍为 5 类一致、概率差 0、
+残差 3.33e-16。共享中间文件的限制已解除。
+
 ### 4.2 固定终末
 
 CellFlow 新增 `cellrank_terminal` 配置；固定 `Beta,Alpha` 后：
@@ -79,8 +83,7 @@ CellFlow 新增 `cellrank_terminal` 配置；固定 `Beta,Alpha` 后：
 
 ### 4.3 边界
 
-- 两个对照共享同一份预处理 `analysis.h5ad`，只证明 CellRank 计算与吸收求解一致，
-  不证明预处理/DPT 独立正确。
+- 独立实现使用相同步骤/参数，不是不同软件版本或不同参数的泛化测试。
 - 终末类别来自 GPCCA 的细胞图识别；5 类不等于 5 条已验证谱系。
 - 没有真实谱系追踪或独立实验参照，因此仍为 L2，不是 L3。
 
@@ -102,6 +105,8 @@ CellFlow 新增 `cellrank_terminal` 配置；固定 `Beta,Alpha` 后：
 - 输入协议（Ms/Mu、normalized、is_count_data=False）已按 1.2.0 对齐，后验文件不是伪造零不确定性。
 - 2 epochs 只验证接口；**没有 validation ELBO、early stopping、收敛判据**。
 - 跨种子中位余弦约 0.32，说明短训练下方向/幅度不稳定；不能宣称种子稳健。
+- 追加 20 epochs（seed 42）：train ELBO 274,809 → 153,519，validation 383,171 → 223,909，
+  仍在下降且 `budget_exhausted=true`；**20 epochs 仍未收敛**，因此不升级证据等级。
 - veloVI 当前证据等级：接口/数值约束 **L1**；收敛/稳健性 **未验证**。
 
 ---
