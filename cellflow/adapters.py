@@ -463,9 +463,15 @@ def _fate_block(a, config, record, log, cluster_key, use_velocity):
     estimator.predict_terminal_states()
     record('GPCCA.compute_fate_probabilities', estimator.compute_fate_probabilities,
            use_petsc=False, n_jobs=1, backend='threading', show_progress_bar=False)
+    # 小数据优先直接求解：迭代求解器在部分 scipy/BLAS 组合下会产生负概率
+    small = int(a.n_obs) <= 5000
     try:
-        estimator.compute_fate_probabilities(use_petsc=False, n_jobs=1, backend='threading',
-                                             show_progress_bar=False)
+        if small:
+            estimator.compute_fate_probabilities(use_petsc=False, solver='direct', n_jobs=1,
+                                                 backend='threading', show_progress_bar=False)
+        else:
+            estimator.compute_fate_probabilities(use_petsc=False, n_jobs=1, backend='threading',
+                                                 show_progress_bar=False)
     except ValueError as exc:
         # scipy 版本差异下默认迭代求解器可能报 "value(s) are negative"；小数据改用直接求解
         log('命运概率默认求解器失败，改用 solver=direct 重试：' + str(exc)[:200])
