@@ -8,6 +8,7 @@ from pathlib import Path
 import streamlit as st
 
 from ... import workspace
+from ... import reports
 from ...registry import INDEX
 from .. import help as help_mod
 from .. import shell, state
@@ -22,11 +23,9 @@ B_HTML = 'B_report.html'
 def _zip(folder: Path) -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for pattern in ('*.md', '*.html', '*.json', '*.log'):
-            for path in folder.glob(pattern):
-                zf.write(path, path.name)
-        for path in (folder / 'figures').glob('*.svg') if (folder / 'figures').exists() else []:
-            zf.write(path, 'figures/' + path.name)
+        # 与 API 导出使用同一份资源清单（含 figures/*.png，例如 stream.png）
+        for path, arcname in reports.bundle_entries(folder):
+            zf.write(path, arcname)
     return buf.getvalue()
 
 
