@@ -4,6 +4,7 @@
 基线：PR #1 `4fcb61f`；工作分支 `phase2/scientific-validation`（未合并）
 版本：v0.4.0 候选（**未发布**）
 
+> 用途说明：本项目当前只用于个人学习，不对外提供；外部试用清单仅作为边界记录。
 > 本报告只陈述本轮实际执行过的验证。所有未完成项在 §7/§8 明确标为未验证，
 > 不能因为 CI 或单元测试通过而视为科学验收完成。
 
@@ -105,8 +106,9 @@ CellFlow 新增 `cellrank_terminal` 配置；固定 `Beta,Alpha` 后：
 - 输入协议（Ms/Mu、normalized、is_count_data=False）已按 1.2.0 对齐，后验文件不是伪造零不确定性。
 - 2 epochs 只验证接口；**没有 validation ELBO、early stopping、收敛判据**。
 - 跨种子中位余弦约 0.32，说明短训练下方向/幅度不稳定；不能宣称种子稳健。
-- 追加 20 epochs（seed 42）：train ELBO 274,809 → 153,519，validation 383,171 → 223,909，
-  仍在下降且 `budget_exhausted=true`；**20 epochs 仍未收敛**，因此不升级证据等级。
+- 追加 20 / 60 epochs（seed 42）：train 274,809 → 153,519 → 56,458，
+  validation 383,171 → 223,909 → 90,590；60 epochs 最后 5 轮仍在下降，
+  `budget_exhausted=true`，**没有出现平台**，因此仍不升级证据等级。
 - veloVI 当前证据等级：接口/数值约束 **L1**；收敛/稳健性 **未验证**。
 
 ---

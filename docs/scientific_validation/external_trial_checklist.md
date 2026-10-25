@@ -1,5 +1,8 @@
 # CellFlow 外部试用准入清单（Phase II）
 
+> 说明：如果只用于个人学习，本清单可忽略；保留它是为了区分“自己学”和“给别人用”的证据要求。
+> 个人使用请看 `docs/personal_learning_guide.md`。
+
 日期：2026-10-26
 状态：**受控试用可；无监督外部使用不可**
 基线：PR #1 `4fcb61f` → 分支 `phase2/scientific-validation`

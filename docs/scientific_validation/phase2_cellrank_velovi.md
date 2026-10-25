@@ -98,17 +98,18 @@ torch 2.5.1+cpu）中独立子进程运行，`max_epochs=2`，其余参数固定
 
 为判断“2 epochs 是否只是没训练够”，对 seed 42 追加 20 epochs（仍不足收敛）：
 
-| 项 | 2 epochs | 20 epochs |
-|---|---:|---:|
-| elbo_train_final | 263,638.03 | **153,519.36** |
-| elbo_validation_final | 未保存 | **223,909.67** |
-| epochs_ran | 2 | 20 |
-| budget_exhausted | 是 | 是 |
-| 训练/验证历史 | 有限 | 有限，20 条 |
-| convergence_status | not_assessed | not_assessed |
+| 项 | 2 epochs | 20 epochs | 60 epochs |
+|---|---:|---:|---:|
+| elbo_train_final | 263,638.03 | 153,519.36 | **56,457.93** |
+| elbo_validation_final | 未保存 | 223,909.67 | **90,589.50** |
+| epochs_ran | 2 | 20 | 60 |
+| budget_exhausted | 是 | 是 | 是 |
+| 训练/验证历史 | 有限 | 20 条 | 60 条 |
+| convergence_status | not_assessed | not_assessed | not_assessed |
 
-训练与验证 ELBO 仍在下降（train: 274,809 → 153,519；validation: 383,171 → 223,909），
-说明 **20 epochs 仍未收敛**；`budget_exhausted=true`。不能把“跑满预算”当作收敛。
+60 epochs 的最后 5 轮 train 仍从 61,706 降到 56,458、validation 从 97,879 降到 90,590，
+**没有出现平台**；`budget_exhausted=true`。这说明“跑满预算”不等于收敛，
+veloVI 在本机资源下仍属于 **未完成收敛验证**，不能升级为 L2。
 
 | 种子 | epochs | elbo_train_final | 后验不确定性文件 | std 形状 | std 均值 | std 中位 | std 最大 | 有限 |
 |---:|---:|---:|---|---:|---:|---:|---:|---|

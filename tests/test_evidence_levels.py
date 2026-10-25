@@ -46,6 +46,8 @@ class EvidenceInRun(unittest.TestCase):
             self.assertIn('4.12 证据等级', report)
             self.assertIn('L2', report)
             self.assertIn('未达到', report)
+            self.assertIn('先读这里', report)
+            self.assertIn('没有执行', report)
             tech = (output / 'B_技术与复现报告.md').read_text(encoding='utf-8')
             self.assertIn('证据等级', tech)
 
