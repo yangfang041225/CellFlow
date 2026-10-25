@@ -2,7 +2,7 @@
 
 本轮审计修复（F02/F03/F05/F22/F23）：
 - F02 取消：领取任务时记录计算子进程 PID 与创建时间；取消先写 cancel_requested，
-  再用受控进程树（Windows `taskkill /T /F`，POSIX 进程组）结束计算进程及 supervisor，
+  再用受控进程树（Windows Job Object，POSIX 独立进程组）只结束计算树，保留 supervisor，
   确认进程真的退出后才写终态 cancelled，避免「界面已取消、计算还在跑」。
 - F03 并发：supervisor 表存单行全局租约，`start_worker` 幂等（已有存活 supervisor 时不再启动）；
   领取任务时在同一事务里检查全局并发上限 `max_concurrent`（默认 1，环境变量可配置），
@@ -213,11 +213,13 @@ def _pid_alive(pid):
         import ctypes
         handle = _open_process(pid, 0x1000)  # PROCESS_QUERY_LIMITED_INFORMATION
         if not handle:
-            return False
+            # Only ERROR_INVALID_PARAMETER proves this PID does not exist.
+            # Access denied/resource failures must not release queue capacity.
+            return ctypes.windll.kernel32.GetLastError() != 87
         try:
             code = ctypes.c_ulong()
             ok = ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
-            return bool(ok) and code.value == 259  # STILL_ACTIVE
+            return not ok or code.value == 259  # unknown state is conservatively alive
         finally:
             ctypes.windll.kernel32.CloseHandle(handle)
     try:
@@ -600,8 +602,10 @@ def recover_orphans(store=STORE):
             expired = lease is not None and now > float(lease)
             if alive and not expired:
                 continue
-            if row['pid'] and _pid_alive(row['pid']) and _process_create_time(row['pid']) is None:
+            if row['pid'] and _pid_alive(row['pid']) and (row['pid_created'] in (None, '', 0) or _process_create_time(row['pid']) is None):
                 continue  # 身份未知时不能释放并发名额或误杀
+            if row['child_pid'] and _pid_alive(row['child_pid']) and (row['child_created'] in (None, '', 0) or _process_create_time(row['child_pid']) is None):
+                continue
             if _identity_matches(row['child_pid'], row['child_created']):
                 if os.name == 'nt':
                     from .process_job import terminate, job_name
@@ -646,6 +650,8 @@ def _supervisor_alive(row):
         return False
     if row['pid'] and _identity_matches(row['pid'], row['pid_created']):
         return True
+    if row['pid'] and _pid_alive(row['pid']) and (row['pid_created'] in (None, '', 0) or _process_create_time(row['pid']) is None):
+        return True  # cannot safely replace an inaccessible live supervisor
     # 暂定租约：刚启动、worker 还没写 pid；给一个短保护期避免重复拉起
     if not row['pid'] and row['token']:
         return (time.time() - float(row['heartbeat'] or 0)) < SUPERVISOR_START_GRACE

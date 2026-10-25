@@ -28,6 +28,16 @@ class AbsorptionSafety(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'cannot reach'):
             solve(kernel, terms)
 
+    def test_explicit_sparse_zero_is_not_a_reachability_edge(self):
+        from scipy import sparse
+        from cellflow.absorption import validate
+        kernel, terms = self.example()
+        matrix = np.eye(4)
+        kernel.transition_matrix = sparse.csr_matrix(matrix)
+        kernel.transition_matrix[3, 0] = 0  # retained structural zero in sparse storage
+        with self.assertRaisesRegex(ValueError, 'cannot reach'):
+            validate(kernel, terms, ['B', 'A'], [[0, 1], [0, 1], [1, 0], [.4, .6]])
+
     def test_bad_transition_rejected(self):
         for value in [-.2, np.inf, np.nan, 3.0]:
             kernel, terms = self.example()
@@ -48,8 +58,39 @@ class AbsorptionSafety(unittest.TestCase):
         with self.assertRaises(ValueError):
             solve(kernel, terms)
 
+    def test_native_solver_return_is_checked_against_equations(self):
+        from cellflow.adapters import _compute_fate
+        kernel, terms = self.example()
+        wrong = np.array([[0, 1], [0, 1], [1, 0], [.1, .9]])
+        estimator = SimpleNamespace(terminal_states=terms,
+                                    compute_fate_probabilities=lambda **kw: None,
+                                    fate_probabilities=SimpleNamespace(names=['B', 'A'], X=wrong))
+        records = []
+        _, probs, _, _, _ = _compute_fate(estimator, kernel, lambda *a: None,
+                                         lambda name, *a, **kw: records.append(name))
+        np.testing.assert_allclose(probs[3], [.4, .6])
+        self.assertIn('cellflow.absorption_direct', records)
+
+    def test_valid_native_solver_has_measured_residual(self):
+        from cellflow.adapters import _compute_fate
+        kernel, terms = self.example()
+        correct = np.array([[0, 1], [0, 1], [1, 0], [.4, .6]])
+        estimator = SimpleNamespace(terminal_states=terms,
+                                    compute_fate_probabilities=lambda **kw: None,
+                                    fate_probabilities=SimpleNamespace(names=['B', 'A'], X=correct))
+        _compute_fate(estimator, kernel, lambda *a: None, lambda *a, **kw: None)
+        self.assertEqual(kernel._cellflow_absorption_diagnostics['solver'], 'GPCCA')
+        self.assertLess(kernel._cellflow_absorption_diagnostics['equation_residual_max'], 1e-12)
+
 
 class IdentitySafety(unittest.TestCase):
+    def test_inaccessible_supervisor_is_not_replaced(self):
+        with patch.object(queue, '_pid_alive', return_value=True), \
+                patch.object(queue, '_process_create_time', return_value=None):
+            self.assertTrue(queue._supervisor_alive({'pid': 123, 'pid_created': 10}))
+        with patch.object(queue, '_pid_alive', return_value=True), patch.object(queue, '_process_create_time', return_value=10):
+            self.assertTrue(queue._supervisor_alive({'pid': 123, 'pid_created': None}))
+
     def test_unknown_identity_fails_closed(self):
         with patch.object(queue, '_pid_alive', return_value=True):
             for created in [None, '', 0, 'invalid']:

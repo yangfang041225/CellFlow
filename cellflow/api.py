@@ -84,6 +84,14 @@ def _dataset_rows() -> List[dict]:
     return rows
 
 
+def _project_dataset(path):
+    target = _safe(str(path))
+    visible = {str(Path(row['path']).resolve()) for row in _dataset_rows()}
+    if str(target) not in visible:
+        raise HTTPException(404, '当前项目中数据集不存在')
+    return target
+
+
 def _digest(path: Path, limit=256 * 1024 * 1024):
     """返回 (hash, kind)：<=256 MB 全量 sha256；更大为首尾 4 MB + 大小的部分指纹。"""
     import hashlib
@@ -477,7 +485,7 @@ def dataset_detail(dataset_id: str):
 
 @app.get('/api/datasets/inspect')
 def inspect_dataset(path: str, raw_x: int = 0, raw_su: int = 0):
-    target = _safe(path)
+    target = _project_dataset(path)
     data, fmt = _payload(target)
     config = _config({'raw_x_confirmed': bool(raw_x), 'raw_su_confirmed': bool(raw_su)})
     try:
@@ -521,7 +529,7 @@ def make_demo():
 
 @app.post('/api/runs')
 def create_run(body: RunBody):
-    path = _safe(body.path)
+    path = _project_dataset(body.path)
     if body.method not in INDEX:
         raise HTTPException(400, f'未知方法：{body.method}')
     try:
@@ -543,7 +551,9 @@ def runs(state: str = '', method: str = '', dataset: str = '', q: str = '', limi
          offset: int = 0, project: str = ''):
     from .queue import count_jobs, list_jobs
     items = []
-    target = project or workspace.active_project()['id']
+    target = workspace.active_project()['id']
+    if project and project != target:
+        raise HTTPException(404, '只能列出当前项目的任务')
     limit = max(1, min(int(limit or 100), 200))
     offset = max(0, int(offset or 0))
     filters = dict(state=state or None, method=method or None,

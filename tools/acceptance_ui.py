@@ -42,6 +42,19 @@ def main():
                 if server.poll() is not None or time.monotonic() > deadline:
                     raise RuntimeError('Acceptance API did not start')
                 time.sleep(.2)
+        # The production UI intentionally hides built-in examples. Upload a clearly
+        # labelled generated fixture through the real import API, preserving that policy.
+        import requests
+        from cellflow.data import make_demo, load, to_anndata
+        fixture = to_anndata(load(make_demo(output / 'synthetic-input.npz')))
+        fixture.uns['cellflow_synthetic'] = True
+        fixture_path = output / 'acceptance-synthetic.h5ad'
+        fixture.write_h5ad(fixture_path)
+        with fixture_path.open('rb') as handle:
+            response = requests.post(origin + '/api/datasets/upload',
+                                     files={'file': ('acceptance-synthetic.h5ad', handle)}, timeout=30)
+        response.raise_for_status()
+        fixture_id = response.json()['id']
         from PySide6.QtCore import QTimer
         from PySide6.QtWidgets import QApplication
         from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -52,6 +65,8 @@ def main():
         state = {'step': 0, 'pending': False, 'ticks': 0, 'dataset': False, 'submitted': False}
 
         def finish(error=None):
+            if error and state.get('view') is not None:
+                state['view'].grab().save(str(output / 'failure.png'))
             evidence['error'] = error
             evidence['ok'] = error is None
             (output / 'result.json').write_text(json.dumps(evidence, ensure_ascii=False, indent=2), encoding='utf-8')
@@ -69,12 +84,13 @@ def main():
             view = next((w.findChild(QWebEngineView) for w in windows if w.findChild(QWebEngineView)), None)
             if view is None:
                 return
+            state['view'] = view
             if not state['dataset']:
                 state['pending'] = True
                 expression = """(() => {
                   const select = document.querySelector('.cf-side select');
-                  const option = select && [...select.options].find(x=>x.textContent.includes('模拟'));
-                  if (!option) return false;
+                  const option = select && [...select.options].find(x=>x.value===FIXTURE_ID);
+                  if (!option) return JSON.stringify({ok:false,options:select?[...select.options].map(x=>x.textContent):[],select:!!select});
                   select.value=option.value; select.dispatchEvent(new Event('change',{bubbles:true}));
                   const original=window.fetch;
                   window.fetch=async (...args)=>{
@@ -83,11 +99,14 @@ def main():
                       response.clone().json().then(x=>window.__acceptanceJob=x.id);
                     return response;
                   };
-                  return true;
+                  return JSON.stringify({ok:true,selected:option.textContent});
                 })()"""
-                def selected(ok):
+                expression = expression.replace('FIXTURE_ID', json.dumps(fixture_id))
+                def selected(raw):
                     state['pending'] = False
-                    state['dataset'] = bool(ok)
+                    data = json.loads(raw or '{}')
+                    evidence['dataset_selection'] = data
+                    state['dataset'] = bool(data.get('ok'))
                 view.page().runJavaScript(expression, selected)
                 return
             if state['step'] >= len(labels):

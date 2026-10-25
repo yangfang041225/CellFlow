@@ -447,8 +447,10 @@ def _compute_fate(estimator, kernel, log, record):
     try:
         estimator.compute_fate_probabilities(solver='direct', **args)
         fp = estimator.fate_probabilities
-        return ([str(x) for x in fp.names], np.asarray(fp.X, dtype=float),
-                terms, {str(k): int(v) for k, v in terms.value_counts().items()}, 0)
+        from .absorption import validate as validate_fate
+        names = [str(x) for x in fp.names]
+        probs, negatives = validate_fate(kernel, terms, names, np.asarray(fp.X, dtype=float))
+        return (names, probs, terms, {str(k): int(v) for k, v in terms.value_counts().items()}, negatives)
     except ValueError as exc:
         log('GPCCA 命运概率求解失败，改用直接吸收求解：' + str(exc)[:160])
         record('cellflow.absorption_direct', _absorption_direct, limit=1200)
