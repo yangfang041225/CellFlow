@@ -341,7 +341,12 @@ def run(input_path, config, folder):
             _progress(folder, provenance, stage)
             log(f'绘图前可用内存 {require(0.5):.2f} GB')
             make_figures(folder, data, qc, result, config=c)
-            provenance['quality'] = _quality_report(folder, result, data)
+            quality = _quality_report(folder, result, data)
+            provenance['quality'] = quality
+            if not quality.get('ok'):
+                stage = 'quality'
+                details = '；'.join(quality.get('warnings', [])[:3]) or '见 quality.json'
+                raise RuntimeError('结果结构校验失败：' + details)
             provenance['status'] = 'completed'
             log('结果序列化与图形导出完成')
         except Exception as exc:

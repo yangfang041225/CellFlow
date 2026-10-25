@@ -171,6 +171,10 @@ def register_dataset(path) -> None:
     resolved = str(Path(path).resolve())
     active = active_project()['id']
     with _REGISTRY_LOCK:
+        try:
+            _drop_public_ignored(path)
+        except Exception:
+            pass
         entries = _entries()
         for item in entries:
             if (str(Path(item['path']).resolve()) == resolved
@@ -183,19 +187,63 @@ def register_dataset(path) -> None:
         os.replace(tmp, DATASET_FILE)
 
 
-def unregister_dataset(path) -> bool:
-    """只移除登记，不删除文件；返回是否真的移除了。"""
+PUBLIC_IGNORED_FILE = STORE / 'public_ignored.json'
+
+
+def _public_ignored():
+    if not PUBLIC_IGNORED_FILE.exists():
+        return []
+    try:
+        return [str(Path(item).resolve()) for item in json.loads(PUBLIC_IGNORED_FILE.read_text(encoding='utf-8'))]
+    except Exception:
+        return []
+
+
+def _write_public_ignored(items):
+    STORE.mkdir(parents=True, exist_ok=True)
+    merged = sorted(set(_public_ignored()) | {str(Path(item).resolve()) for item in items})
+    tmp = PUBLIC_IGNORED_FILE.with_name(PUBLIC_IGNORED_FILE.name + '.tmp')
+    tmp.write_text(json.dumps(merged), encoding='utf-8')
+    os.replace(tmp, PUBLIC_IGNORED_FILE)
+
+
+def _drop_public_ignored(path):
+    current = _public_ignored()
     resolved = str(Path(path).resolve())
+    if resolved not in current:
+        return
+    STORE.mkdir(parents=True, exist_ok=True)
+    tmp = PUBLIC_IGNORED_FILE.with_name(PUBLIC_IGNORED_FILE.name + '.tmp')
+    tmp.write_text(json.dumps([item for item in current if item != resolved]), encoding='utf-8')
+    os.replace(tmp, PUBLIC_IGNORED_FILE)
+
+
+def unregister_dataset(path, project=None) -> bool:
+    """移除登记（不删文件）：project 给定时只移除该项目关联。公共文件会写入忽略列表，
+    避免刷新后被目录扫描重新加入。"""
+    resolved = str(Path(path).resolve())
+    removed = False
     with _REGISTRY_LOCK:
         entries = _entries()
-        kept = [item for item in entries if str(Path(item['path']).resolve()) != resolved]
-        if len(kept) == len(entries):
-            return False
-        STORE.mkdir(parents=True, exist_ok=True)
-        tmp = DATASET_FILE.with_name(DATASET_FILE.name + '.tmp')
-        tmp.write_text(json.dumps(kept, ensure_ascii=False, indent=2), encoding='utf-8')
-        os.replace(tmp, DATASET_FILE)
-    return True
+        kept = []
+        for item in entries:
+            same = str(Path(item['path']).resolve()) == resolved
+            if same and (project is None or (item.get('project') or 'default') == project):
+                removed = True
+                continue
+            kept.append(item)
+        if removed:
+            STORE.mkdir(parents=True, exist_ok=True)
+            tmp = DATASET_FILE.with_name(DATASET_FILE.name + '.tmp')
+            tmp.write_text(json.dumps(kept, ensure_ascii=False, indent=2), encoding='utf-8')
+            os.replace(tmp, DATASET_FILE)
+        try:
+            if Path(resolved).is_relative_to(PUBLIC.resolve()):
+                _write_public_ignored([resolved])
+                removed = True
+        except Exception:
+            pass
+    return removed
 
 
 def list_datasets(project: Optional[str] = None) -> List[Dict]:
@@ -218,8 +266,11 @@ def list_datasets(project: Optional[str] = None) -> List[Dict]:
             plan['source'] = '我导入的'
             add(plan)
     public = PUBLIC
+    ignored = set(_public_ignored())
     if public.exists():
         for path in sorted(public.iterdir()):
+            if str(path.resolve()) in ignored:
+                continue
             plan = _dataset_candidate(path)
             if plan:
                 plan['source'] = '公开数据'
@@ -307,20 +358,6 @@ def counts() -> Dict[str, int]:
     for job in items:
         out[job.get('state', 'failed')] = out.get(job.get('state', 'failed'), 0) + 1
     return out
-
-def unregister_dataset(path) -> bool:
-    """只移除登记，不删除文件；文件仍可被任务引用，故调用方需先检查引用。"""
-    resolved = str(Path(path).resolve())
-    with _REGISTRY_LOCK:
-        items = [str(Path(item).resolve()) for item in registry()]
-        if resolved not in items:
-            return False
-        items = [item for item in items if item != resolved]
-        STORE.mkdir(parents=True, exist_ok=True)
-        tmp = DATASET_FILE.with_name(DATASET_FILE.name + '.tmp')
-        tmp.write_text(json.dumps(sorted(set(items)), ensure_ascii=False, indent=2), encoding='utf-8')
-        os.replace(tmp, DATASET_FILE)
-    return True
 
 def archive_project(project_id: str, archived: bool = True) -> Optional[Dict]:
     """归档/恢复项目；归档当前项目时自动切到第一个未归档项目。"""

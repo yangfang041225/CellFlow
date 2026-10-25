@@ -78,9 +78,10 @@ class Importers(unittest.TestCase):
         self.assertEqual(first.dataset.X.shape, (len(CELLS), len(GENES)))
 
         second = importers.import_any(self.root / 'flipped.h5ad')
-        self.assertTrue(second.transposed)
-        self.assertEqual(second.dataset.X.shape, (len(CELLS), len(GENES)))
-        self.assertEqual(second.dataset.genes[0], GENES[0])
+        # AnnData 的 obs/var 是权威轴：即使形状像“基因×细胞”，也不能自动转置
+        self.assertFalse(second.transposed)
+        self.assertEqual(second.dataset.X.shape, (len(GENES), len(CELLS)))
+        self.assertEqual(list(second.dataset.cells), list(GENES))
 
     # ------------------------------------------------------------ 10x / 压缩包 / loom
     def _tenx_dir(self):

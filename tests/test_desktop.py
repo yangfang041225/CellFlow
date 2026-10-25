@@ -120,7 +120,8 @@ class WindowsGuiLauncher(unittest.TestCase):
 class InstallCheck(unittest.TestCase):
     def test_install_check_mode_reports_ready(self):
         proc = subprocess.run([sys.executable, 'install.py', '--check'], cwd=str(ROOT),
-                              capture_output=True, text=True, encoding='utf-8', timeout=180)
+                              capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=180,
+                            env={**os.environ, 'PYTHONUTF8': '1'})
         self.assertEqual(proc.returncode, 0, (proc.stdout or '') + (proc.stderr or ''))
         self.assertIn('ENVIRONMENT_CHECK_OK', proc.stdout)
         self.assertIn('.venv', proc.stdout)

@@ -24,6 +24,7 @@ from .data import load as load_data
 from .queue import start_worker, submit
 from .registry import (DEFAULT_VELOCITY_MODEL, FAMILIES, INDEX, METHODS, VELOCITY_MODELS,
                        eligibility, env_python, missing_needs, status_of)
+from .reports import bundle_entries
 from .runner import DEFAULTS, normalize_config, validate
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -84,7 +85,7 @@ def _dataset_rows() -> List[dict]:
 
 
 def _digest(path: Path, limit=256 * 1024 * 1024):
-    """文件哈希：小于 256 MB 全量 sha256；更大取首尾 4 MB + 大小，避免读几十 GB。"""
+    """返回 (hash, kind)：<=256 MB 全量 sha256；更大为首尾 4 MB + 大小的部分指纹。"""
     import hashlib
     size = path.stat().st_size
     digest = hashlib.sha256()
@@ -97,7 +98,7 @@ def _digest(path: Path, limit=256 * 1024 * 1024):
             handle.seek(max(0, size - 4 * 1024 * 1024))
             digest.update(handle.read(4 * 1024 * 1024))
             digest.update(str(size).encode('ascii'))
-    return digest.hexdigest()
+    return digest.hexdigest(), ('sha256' if size <= limit else 'sha256-partial-headtail-size')
 
 
 def _payload(path: Path):
@@ -227,18 +228,38 @@ MAX_UPLOAD_BYTES = 1024 * 1024 * 1024
 
 @app.post('/api/datasets/upload')
 async def upload(file: UploadFile):
-    raw = await file.read()
-    if not raw:
-        raise HTTPException(400, '文件为空')
-    if len(raw) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, f'文件超过 {MAX_UPLOAD_BYTES // 1024 // 1024} MiB 上限')
+    """流式落盘 + 边写边限流：超限立即中止，不把整个文件读进内存。"""
+    import uuid
+
     suffix = Path(file.filename or 'data').suffix.lower()
     if suffix not in ALLOWED_SUFFIX:
         raise HTTPException(415, f'不支持的格式：{suffix or "无扩展名"}')
     target_dir = ROOT / 'results' / 'inputs'
     target_dir.mkdir(parents=True, exist_ok=True)
-    target = target_dir / (hashlib.sha256(raw).hexdigest()[:16] + suffix)
-    target.write_bytes(raw)
+    temporary = target_dir / f'.upload-{uuid.uuid4().hex}{suffix}'
+    digest = hashlib.sha256()
+    total = 0
+    try:
+        with open(temporary, 'wb') as handle:
+            while True:
+                chunk = await file.read(4 * 1024 * 1024)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > MAX_UPLOAD_BYTES:
+                    raise HTTPException(413, f'文件超过 {MAX_UPLOAD_BYTES // 1024 // 1024} MiB 上限')
+                handle.write(chunk)
+                digest.update(chunk)
+        if total == 0:
+            raise HTTPException(400, '文件为空')
+        target = target_dir / (digest.hexdigest()[:16] + suffix)
+        os.replace(temporary, target)
+    except HTTPException:
+        temporary.unlink(missing_ok=True)
+        raise
+    except Exception as exc:
+        temporary.unlink(missing_ok=True)
+        raise HTTPException(400, f'保存上传文件失败：{type(exc).__name__}: {exc}')
     try:
         load_data(target)
     except Exception as exc:
@@ -256,13 +277,14 @@ def delete_dataset(dataset_id: str):
     if match is None:
         raise HTTPException(404, '数据集不存在或已移除')
     from .queue import list_jobs
-    references = list_jobs(dataset=match['path'])
+    project = workspace.active_project()['id']
+    references = list_jobs(dataset=match['path'], project=project)
     if references:
         raise HTTPException(
             400,
             f'该数据集仍被 {len(references)} 个任务引用（如 {references[0]["id"][:8]}）；'
             '请先删除这些任务记录，或保留数据集。文件不会被删除。')
-    removed = workspace.unregister_dataset(match['path'])
+    removed = workspace.unregister_dataset(match['path'], project=project)
     return {'ok': removed, 'message': '已移除登记；文件仍保留在原位置'}
 
 
@@ -337,17 +359,32 @@ def _dataset_preview(data, limit=5):
     import numpy as np
 
     matrix = data.X
-    values = matrix.data if hasattr(matrix, 'data') else np.asarray(matrix).ravel()
-    values = np.asarray(values, dtype=float)
-    nz = values[values != 0]
-    stats = {
-        'min': float(values.min()) if values.size else 0.0,
-        'max': float(values.max()) if values.size else 0.0,
-        'mean': float(values.mean()) if values.size else 0.0,
-        'nonzero_pct': round(float((values != 0).mean() * 100), 2) if values.size else 0.0,
-        'dtype': str(getattr(matrix, 'dtype', '')),
-        'sparse': hasattr(matrix, 'data'),
-    }
+    from scipy import sparse as _sparse
+    if _sparse.issparse(matrix):
+        nnz = int(matrix.nnz)
+        total = int(matrix.shape[0]) * int(matrix.shape[1])
+        explicit = np.asarray(matrix.data, dtype=float)
+        total_sum = float(matrix.sum())
+        stats = {
+            'min': min(0.0, float(explicit.min())) if nnz < total and explicit.size else (float(explicit.min()) if explicit.size else 0.0),
+            'max': float(explicit.max()) if explicit.size else 0.0,
+            'mean': total_sum / total if total else 0.0,
+            'nonzero_pct': round(100.0 * nnz / total, 2) if total else 0.0,
+            'dtype': str(getattr(matrix, 'dtype', '')),
+            'sparse': True,
+            'nnz': nnz,
+        }
+    else:
+        values = np.asarray(matrix, dtype=float).ravel()
+        stats = {
+            'min': float(values.min()) if values.size else 0.0,
+            'max': float(values.max()) if values.size else 0.0,
+            'mean': float(values.mean()) if values.size else 0.0,
+            'nonzero_pct': round(float((values != 0).mean() * 100), 2) if values.size else 0.0,
+            'dtype': str(getattr(matrix, 'dtype', '')),
+            'sparse': False,
+            'nnz': int((values != 0).sum()) if values.size else 0,
+        }
     obs_preview = {}
     obs_summary = {}
     for key, column in list((data.obs or {}).items())[:8]:
@@ -407,7 +444,8 @@ def dataset_detail(dataset_id: str):
         'size': match.get('size') or '',
         'mtime': match.get('mtime'),
         'path': str(target),
-        'sha256': _digest(target),
+        'content_hash': _digest(target)[0],
+        'hash_kind': _digest(target)[1],
         'n_cells': int(data.X.shape[0]),
         'n_genes': int(data.X.shape[1]),
         'layers': list((fmt or {}).get('layers_present') or []),
@@ -598,7 +636,7 @@ def _ensure_report_pdf(folder, kind):
         return None
     pdf = html.with_suffix('.pdf')
     version_file = Path(folder) / '.pdf_version'
-    version = '2-header-footer'
+    version = '3-unified-units'
     try:
         cached_version = version_file.read_text(encoding='utf-8').strip()
     except Exception:
@@ -762,13 +800,10 @@ def run_zip(job_id: str):
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
         zf.writestr('manifest.json', json.dumps(manifest, ensure_ascii=False, indent=2))
-        for pattern in ('*.md', '*.html', '*.pdf', '*.json', '*.log', '*.svg'):
-            for path in folder.glob(pattern):
-                zf.write(path, path.name)
-        fig = folder / 'figures'
-        if fig.exists():
-            for path in fig.glob('*.svg'):
-                zf.write(path, 'figures/' + path.name)
+        # 资源清单由 reports.bundle_entries 统一枚举：报告文件 + 实际被引用的
+        # figures/*.png、figures/*.svg（含 stream.png），保留相对目录，保证离线可打开。
+        for path, arcname in bundle_entries(folder):
+            zf.write(path, arcname)
     data = buf.getvalue()
     return Response(content=data, media_type='application/zip',
                     headers={'Content-Disposition': f'attachment; filename="{job_id}_reports.zip"'})

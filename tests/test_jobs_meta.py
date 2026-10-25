@@ -128,12 +128,14 @@ class JobsMeta(unittest.TestCase):
 
     def test_zip_contains_manifest_and_pdfs(self):
         import io
+        import re
         import zipfile
         runs = self.client.get('/api/runs').json()['runs']
         completed = [item for item in runs if item['state'] == 'completed']
         if not completed:
             self.skipTest('没有已完成任务')
-        response = self.client.get(f"/api/runs/{completed[0]['id']}/zip")
+        job = completed[0]
+        response = self.client.get(f"/api/runs/{job['id']}/zip")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content[:2], b'PK')
         archive = zipfile.ZipFile(io.BytesIO(response.content))
@@ -141,8 +143,17 @@ class JobsMeta(unittest.TestCase):
         self.assertIn('manifest.json', names)
         self.assertIn('A_report.pdf', names)
         manifest = json.loads(archive.read('manifest.json'))
-        self.assertEqual(manifest['task_id'], completed[0]['id'])
+        self.assertEqual(manifest['task_id'], job['id'])
         self.assertIn('config', manifest)
+        # F18：HTML 引用的每个本地图片都必须在 ZIP 内，否则离线打开会断图
+        html = archive.read('A_report.html').decode('utf-8', errors='replace')
+        for ref in re.findall(r'src="(figures/[^"]+)"', html):
+            self.assertIn(ref, names, f'{ref} 不在 ZIP 内（离线断图）')
+        # 该任务确实生成过流线图时，PNG 必须被打包（旧实现只收 *.svg）
+        output = Path(job.get('output') or '')
+        stream = (output / 'figures' / 'stream.png')
+        if 'output' in job and stream.is_file():
+            self.assertIn('figures/stream.png', names)
 
     def test_quality_report_flags_shape_mismatch(self):
         from cellflow.data import load
@@ -267,7 +278,8 @@ class JobsMeta(unittest.TestCase):
         response = self.client.get('/api/datasets/' + item['id'] + '/detail')
         self.assertEqual(response.status_code, 200, response.text[:200])
         body = response.json()
-        self.assertEqual(len(body['sha256']), 64)
+        self.assertEqual(len(body['content_hash']), 64)
+        self.assertIn(body['hash_kind'], ('sha256', 'sha256-partial-headtail-size'))
         self.assertGreater(body['n_cells'], 0)
         self.assertGreater(body['n_genes'], 0)
         self.assertIsInstance(body['obs'], list)

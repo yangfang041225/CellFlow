@@ -522,20 +522,8 @@ def _load_all_matrices(folder: Path):
 
 
 def _extract_archive(path: Path, target: Path) -> Path:
-    target.mkdir(parents=True, exist_ok=True)
-    low = path.name.lower()
-    if low.endswith('.zip'):
-        with zipfile.ZipFile(path) as zf:
-            for member in zf.infolist():
-                if member.filename.startswith('__MACOSX'):
-                    continue
-                zf.extract(member, target)
-    elif low.endswith(('.tar', '.tar.gz', '.tgz')):
-        with tarfile.open(path, 'r:*') as tf:
-            for member in tf.getmembers():
-                if member.name.startswith('/') or '..' in member.name:
-                    continue
-                tf.extract(member, target)
+    from .archive import safe_extract
+    safe_extract(path, target)
     return target
 
 

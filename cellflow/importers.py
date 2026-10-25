@@ -106,11 +106,15 @@ def _shape_hint(n_rows: int, n_cols: int) -> bool:
     return n_rows < n_cols and n_cols >= 5000
 
 
-def _to_dataset(adata, notes: List[str], kind: str) -> ImportResult:
+def _to_dataset(adata, notes: List[str], kind: str, trust_axes: bool = False) -> ImportResult:
     """AnnData → Dataset，并处理方向、层与稀疏化。"""
     import anndata as ad
 
     transposed = False
+    if trust_axes:
+        # AnnData 的 obs/var 是权威轴，不能再用名字/形状猜测转置
+        notes.append('按 AnnData 的 obs/var 原样读取（不自动转置）')
+        return _finish_dataset(adata, notes, kind, False)
     verdict = looks_transposed(adata.obs_names, adata.var_names)
     if verdict is None:
         transposed = _shape_hint(adata.n_obs, adata.n_vars)
@@ -120,6 +124,10 @@ def _to_dataset(adata, notes: List[str], kind: str) -> ImportResult:
         adata = adata.T.copy()
         notes.append('检测到矩阵是“基因 × 细胞”（或行列反了），已自动转成“细胞 × 基因”。')
 
+    return _finish_dataset(adata, notes, kind, transposed)
+
+
+def _finish_dataset(adata, notes, kind, transposed):
     # 只保留下游需要的层，并统一成稀疏
     from scipy import sparse
     layers = {}
@@ -152,7 +160,7 @@ def from_h5ad(path: Path) -> ImportResult:
     import anndata as ad
     notes = []
     adata = ad.read_h5ad(path)
-    return _to_dataset(adata, notes, 'h5ad')
+    return _to_dataset(adata, notes, 'h5ad', trust_axes=True)
 
 
 def from_loom(path: Path) -> ImportResult:
@@ -327,15 +335,8 @@ def from_archive(path: Path) -> ImportResult:
     """zip / tar.gz：解压后递归找可读矩阵。"""
     work = Path(tempfile.mkdtemp(prefix='cellflow_import_'))
     try:
-        if path.name.lower().endswith('.zip'):
-            with zipfile.ZipFile(path) as zf:
-                zf.extractall(work)
-        else:
-            with tarfile.open(path, 'r:*') as tf:
-                for member in tf.getmembers():
-                    if member.name.startswith('/') or '..' in member.name:
-                        continue
-                    tf.extract(member, work)
+        from .archive import safe_extract
+        safe_extract(path, work)
         candidates = find_candidates(work)
         if not candidates:
             raise ValueError('压缩包里没有找到可识别的表达矩阵（h5ad / loom / h5 / 10x 三件套 / CSV）')
