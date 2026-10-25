@@ -176,7 +176,7 @@ export function DataView(props: {
       <div className="cf-h1">数据</div>
       <div className="cf-sub">导入并检查数据是否满足各模型的前提。</div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 12 }}>
+      <div className="cf-data-grid">
         <div>
           <div className="cf-sec">导入</div>
           <FormGroup label="来源">

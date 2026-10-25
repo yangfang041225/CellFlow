@@ -3,7 +3,7 @@ import {
   Button, Callout, Dialog, HTMLSelect, HTMLTable, InputGroup, Spinner, Tag,
 } from '@blueprintjs/core';
 import { DockviewReact, DockviewReadyEvent, IDockviewPanelProps, themeLight } from 'dockview-react';
-import { api, Dataset, Meta, Run, RunDetail } from '../services/api';
+import { api, Dataset, Meta, Run, RunCompare, RunDetail } from '../services/api';
 import { createTracker, isAbortError } from '../services/async';
 import { datasetVersionKey } from '../services/context';
 
@@ -21,20 +21,41 @@ const RunContext = createContext<RunDetail | null>(null);
 // F31：运行中任务的日志按 tick / updated 刷新，不再只依赖 id 与 state。
 const TickContext = createContext(0);
 
+/** 主图优先显示的名字（有则当主图，其余折叠为诊断图）。 */
+const MAIN_FIGURES = ['embedding.svg', 'stream.png'];
+
 function FiguresPanel(_props: IDockviewPanelProps) {
   const run = useContext(RunContext);
   if (!run) return <div className="cf-panel-pad">没有结果</div>;
   if (!run.figures.length) {
     return <div className="cf-panel-pad"><Callout compact>这份任务没有图形文件。</Callout></div>;
   }
+  // F35：窄窗口先看到主结果。嵌入/流线图优先，诊断图默认折叠（一次点击即可展开）。
+  const main = run.figures.find((name) => MAIN_FIGURES.includes(name)) || run.figures[0];
+  const diagnostics = run.figures.filter((name) => name !== main);
   return (
     <div className="cf-panel-pad">
-      {run.figures.map((name) => (
-        <div className="cf-fig" key={name} style={{ marginBottom: 8 }}>
-          <img src={api.figureUrl(run.id, name)} alt={name} />
-          <div className="cap">{FIG_CAPTIONS[name] || name} <span className="cf-mono">figures/{name}</span></div>
+      <div className="cf-fig" style={{ marginBottom: 8 }}>
+        <img src={api.figureUrl(run.id, main)} alt={main} />
+        <div className="cap">
+          主图 · {FIG_CAPTIONS[main] || main} <span className="cf-mono">figures/{main}</span>
         </div>
-      ))}
+      </div>
+      {diagnostics.length ? (
+        <details>
+          <summary style={{ cursor: 'pointer', fontSize: 12.4, color: '#566069' }}>
+            诊断图（{diagnostics.length} 张，默认折叠）
+          </summary>
+          <div className="cf-fig-grid" style={{ marginTop: 6 }}>
+            {diagnostics.map((name) => (
+              <div className="cf-fig" key={name}>
+                <img src={api.figureUrl(run.id, name)} alt={name} />
+                <div className="cap">{FIG_CAPTIONS[name] || name} <span className="cf-mono">figures/{name}</span></div>
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }
@@ -248,14 +269,7 @@ export function ResultsView(props: {
   const [loading, setLoading] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   const [compareTarget, setCompareTarget] = useState('');
-  const [compareData, setCompareData] = useState<{
-    changes: { key: string; a: unknown; b: unknown }[];
-    same: boolean;
-    metric_changes?: { key: string; a: unknown; b: unknown }[];
-    figures?: { a: string[]; b: string[] };
-    can_compare_figures?: boolean;
-    compare_reason?: string;
-  } | null>(null);
+  const [compareData, setCompareData] = useState<RunCompare | null>(null);
   const [compareError, setCompareError] = useState('');
   const runsTracker = useRef(createTracker()).current;
   const detailTracker = useRef(createTracker()).current;
@@ -267,7 +281,8 @@ export function ResultsView(props: {
   useEffect(() => {
     const controller = new AbortController();
     const token = runsTracker.begin();
-    api.runs(undefined, controller.signal)
+    // F33：服务端分页后 limit 默认 100；这里取上限 200 用于当前项目的任务下拉。
+    api.runs({ limit: 200 }, controller.signal)
       .then((data) => { if (runsTracker.current(token)) setRuns(data.runs); })
       .catch((exc) => { if (runsTracker.current(token) && !isAbortError(exc)) notify('bad', String(exc)); });
     return () => controller.abort();
@@ -408,6 +423,11 @@ export function ResultsView(props: {
   const missing = shown && shown.state === 'completed' && shown.artifacts
     && !shown.artifacts.result;
 
+  // F33：即使不能同坐标比较，也可以并列看各自的嵌入图；只在两边都确实有图时才显示。
+  const compareFigures = compareData?.figures || { a: [] as string[], b: [] as string[] };
+  const showBothEmbeddings = compareFigures.a.includes('embedding.svg')
+    && compareFigures.b.includes('embedding.svg');
+
   return (
     <div>
       <div className="cf-h1">分析结果</div>
@@ -510,8 +530,9 @@ export function ResultsView(props: {
         </Callout>
       ) : null}
 
-      <Dialog isOpen={compareOpen} onClose={() => setCompareOpen(false)} title="参数对比" style={{ width: 560 }}>
-        <div style={{ padding: 12, fontSize: 12.4 }}>
+      <Dialog isOpen={compareOpen} onClose={() => setCompareOpen(false)} title="参数对比"
+              style={{ width: 'min(560px, 92vw)' }}>
+        <div className="cf-dialog-body" style={{ padding: 12, fontSize: 12.4 }}>
           <div style={{ marginBottom: 8 }}>
             <HTMLSelect value={compareTarget} fill
                         onChange={(event) => setCompareTarget(event.currentTarget.value)}>
@@ -563,25 +584,40 @@ export function ResultsView(props: {
           ) : null}
 
           {compareData ? (
-            compareData.can_compare_figures ? (
-              <div style={{ marginTop: 10 }}>
-                <Callout compact intent="success">两次运行的细胞集合与嵌入参数一致，可并排比较嵌入图。</Callout>
-                <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-                  <figure style={{ margin: 0, flex: 1 }}>
+            <div style={{ marginTop: 10 }}>
+              {/* F33：能否同坐标比较由后端契约逐条给出 reasons；不能同坐标时仍可并列看各自的图。 */}
+              <Callout compact intent={compareData.can_compare_figures ? 'success' : 'warning'}>
+                <b>{compareData.can_compare_figures ? '可同坐标比较' : '不能比较同坐标'}</b>
+                {compareData.reasons?.length ? (
+                  <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                    {compareData.reasons.map((item) => <li key={item}>{item}</li>)}
+                  </ul>
+                ) : (
+                  <span>{compareData.compare_reason || '输入、预处理、参数与实际嵌入坐标一致'}</span>
+                )}
+              </Callout>
+              {compareData.metrics_note ? (
+                <div className="cf-sub" style={{ marginTop: 4 }}>{compareData.metrics_note}</div>
+              ) : null}
+              {showBothEmbeddings ? (
+                <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+                  <figure style={{ margin: 0, flex: '1 1 220px' }}>
                     <img src={api.figureUrl(runId, 'embedding.svg')} style={{ width: '100%' }} alt="当前任务嵌入" />
-                    <figcaption className="cf-sub">当前任务</figcaption>
+                    <figcaption className="cf-sub">
+                      当前任务{compareData.same_coordinates ? '' : '（各自坐标，不能叠加）'}
+                    </figcaption>
                   </figure>
-                  <figure style={{ margin: 0, flex: 1 }}>
+                  <figure style={{ margin: 0, flex: '1 1 220px' }}>
                     <img src={api.figureUrl(compareTarget, 'embedding.svg')} style={{ width: '100%' }} alt="对比任务嵌入" />
-                    <figcaption className="cf-sub">对比任务</figcaption>
+                    <figcaption className="cf-sub">
+                      对比任务{compareData.same_coordinates ? '' : '（各自坐标，不能叠加）'}
+                    </figcaption>
                   </figure>
                 </div>
-              </div>
-            ) : (
-              <Callout compact intent="warning" style={{ marginTop: 10 }}>
-                图像不可直接并排比较：{compareData.compare_reason || '参数或细胞集合不同'}
-              </Callout>
-            )
+              ) : (
+                <Callout compact style={{ marginTop: 6 }}>至少一方没有 embedding.svg，无法并排看图。</Callout>
+              )}
+            </div>
           ) : null}
         </div>
       </Dialog>

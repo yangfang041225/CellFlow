@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alignment, Button, Callout, Dialog, Drawer, H3, HTMLSelect, InputGroup,
   Menu, MenuDivider, MenuItem, Navbar, NavbarDivider, NavbarGroup, NavbarHeading,
-  Spinner, Tag,
+  Popover, Position, Spinner, Tag,
 } from '@blueprintjs/core';
 import { api, Dataset, Meta, Run } from './services/api';
 import {
@@ -48,6 +48,37 @@ const STEPS: { key: ViewKey; label: string }[] = [
   { key: 'reports', label: '报告' },
 ];
 
+/**
+ * F35：Qt 窗口最小 980×620。窗口变窄时把次要工具栏动作收进「更多」，
+ * 保证导航栏单行、不换行、不遮挡内容（不改字体、不隐藏必要状态）。
+ */
+function useNarrow(maxWidth = 1080): boolean {
+  const query = `(max-width: ${maxWidth}px)`;
+  const [narrow, setNarrow] = useState(() => {
+    try {
+      return window.matchMedia(query).matches;
+    } catch {
+      return window.innerWidth <= maxWidth;
+    }
+  });
+  useEffect(() => {
+    let media: MediaQueryList | null = null;
+    try {
+      media = window.matchMedia(query);
+    } catch {
+      media = null;
+    }
+    const onChange = () => setNarrow(media ? media.matches : window.innerWidth <= maxWidth);
+    if (media && typeof media.addEventListener === 'function') {
+      media.addEventListener('change', onChange);
+      return () => media.removeEventListener('change', onChange);
+    }
+    window.addEventListener('resize', onChange);
+    return () => window.removeEventListener('resize', onChange);
+  }, [query]);
+  return narrow;
+}
+
 export function App() {
   const [view, setView] = useState<ViewKey>(() => (localStorage.getItem('cf.view') as ViewKey) || 'overview');
   const [meta, setMeta] = useState<Meta | null>(null);
@@ -69,6 +100,8 @@ export function App() {
   const [declarations, setDeclarations] = useState<Record<string, Declaration>>(() => loadDeclarations());
   // F08：概览「查看」把任务 id 交给结果页定位，避免跳到结果页后仍显示别的任务。
   const [focusRunId, setFocusRunId] = useState('');
+  // F35：窗口窄时把次要动作收进「更多」，导航栏保持单行。
+  const narrow = useNarrow();
   const metaSeq = useRef(0);
 
   const load = useCallback(async () => {
@@ -209,49 +242,98 @@ export function App() {
 
   return (
     <>
-      <Navbar>
+      <Navbar className="cf-navbar">
         <NavbarGroup align={Alignment.LEFT}>
           <NavbarHeading>CellFlow</NavbarHeading>
-          <NavbarDivider />
+          {narrow ? null : <NavbarDivider />}
           <span className="cf-crumb">
             <b>{meta.project?.name || '未命名项目'}</b>
             {dataset ? <> / {dataset.label}</> : null}
           </span>
         </NavbarGroup>
         <NavbarGroup align={Alignment.RIGHT}>
-          <Tag minimal>排队 {counts.queued || 0}</Tag>
-          <Tag minimal>运行 {counts.running || 0}</Tag>
-          <Tag minimal>完成 {counts.completed || 0}</Tag>
-          {counts.failed ? <Tag intent="danger" minimal>失败 {counts.failed}</Tag> : null}
-          <NavbarDivider />
-          <Button icon="refresh" minimal onClick={refresh}>刷新</Button>
-          <Button icon="help" minimal active={helpOpen} onClick={() => setHelpOpen(true)}>
-            说明
+          {narrow ? null : (
+            <>
+              <span className="cf-nav-counts" style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+                <Tag minimal>排队 {counts.queued || 0}</Tag>
+                <Tag minimal>运行 {counts.running || 0}</Tag>
+                <Tag minimal>完成 {counts.completed || 0}</Tag>
+                {counts.failed ? <Tag intent="danger" minimal>失败 {counts.failed}</Tag> : null}
+              </span>
+              <NavbarDivider />
+            </>
+          )}
+          <Button icon="refresh" minimal onClick={refresh} title="刷新状态">{narrow ? null : '刷新'}</Button>
+          <Button icon="help" minimal active={helpOpen} onClick={() => setHelpOpen(true)} title="说明">
+            {narrow ? null : '说明'}
           </Button>
-          <HTMLSelect
-            value={meta.active_project?.id || (meta.projects?.[0]?.id || '')}
-            style={{ width: 150, height: 28, marginLeft: 6 }}
-            onChange={(event) => { void switchProject(event.currentTarget.value); }}>
-            {(meta.projects || []).filter((project) => !project.archived).map((project) => (
-              <option key={project.id} value={project.id}>{project.name}</option>
-            ))}
-          </HTMLSelect>
-          <Button icon="add" minimal onClick={() => { setNewProjectName(''); setCreateOpen(true); }}>新建</Button>
-          <Button icon="properties" minimal onClick={() => setManageOpen(true)}>管理</Button>
-          <Button icon="edit" minimal onClick={() => { setProjectName(meta.project?.name || ''); setRenameOpen(true); }}>
-            项目
-          </Button>
-          <Button icon="desktop" minimal onClick={async () => {
-            setEnvOpen(true);
-            setEnvError('');
-            try {
-              setEnvData(await api.env());
-            } catch (exc) {
-              setEnvError(String(exc));
-            }
-          }}>
-            环境
-          </Button>
+          {narrow ? (
+            <Popover
+              position={Position.BOTTOM_RIGHT}
+              content={(
+                <Menu>
+                  <div style={{ padding: '4px 8px 2px' }}>
+                    <div className="cf-sub">当前项目</div>
+                    <HTMLSelect
+                      fill
+                      value={meta.active_project?.id || (meta.projects?.[0]?.id || '')}
+                      onChange={(event) => { void switchProject(event.currentTarget.value); }}>
+                      {(meta.projects || []).filter((project) => !project.archived).map((project) => (
+                        <option key={project.id} value={project.id}>{project.name}</option>
+                      ))}
+                    </HTMLSelect>
+                    <div className="cf-sub" style={{ marginTop: 4 }}>
+                      排队 {counts.queued || 0} · 运行 {counts.running || 0} · 完成 {counts.completed || 0}
+                      {counts.failed ? ` · 失败 ${counts.failed}` : ''}
+                    </div>
+                  </div>
+                  <MenuDivider />
+                  <MenuItem icon="add" text="新建项目"
+                            onClick={() => { setNewProjectName(''); setCreateOpen(true); }} />
+                  <MenuItem icon="properties" text="项目管理" onClick={() => setManageOpen(true)} />
+                  <MenuItem icon="edit" text="重命名当前项目"
+                            onClick={() => { setProjectName(meta.project?.name || ''); setRenameOpen(true); }} />
+                  <MenuItem icon="desktop" text="环境状态" onClick={async () => {
+                    setEnvOpen(true);
+                    setEnvError('');
+                    try {
+                      setEnvData(await api.env());
+                    } catch (exc) {
+                      setEnvError(String(exc));
+                    }
+                  }} />
+                </Menu>
+              )}>
+              <Button icon="more" minimal title="更多" aria-label="更多" />
+            </Popover>
+          ) : (
+            <>
+              <HTMLSelect
+                value={meta.active_project?.id || (meta.projects?.[0]?.id || '')}
+                style={{ width: 150, height: 28, marginLeft: 6 }}
+                onChange={(event) => { void switchProject(event.currentTarget.value); }}>
+                {(meta.projects || []).filter((project) => !project.archived).map((project) => (
+                  <option key={project.id} value={project.id}>{project.name}</option>
+                ))}
+              </HTMLSelect>
+              <Button icon="add" minimal onClick={() => { setNewProjectName(''); setCreateOpen(true); }}>新建</Button>
+              <Button icon="properties" minimal onClick={() => setManageOpen(true)}>管理</Button>
+              <Button icon="edit" minimal onClick={() => { setProjectName(meta.project?.name || ''); setRenameOpen(true); }}>
+                项目
+              </Button>
+              <Button icon="desktop" minimal onClick={async () => {
+                setEnvOpen(true);
+                setEnvError('');
+                try {
+                  setEnvData(await api.env());
+                } catch (exc) {
+                  setEnvError(String(exc));
+                }
+              }}>
+                环境
+              </Button>
+            </>
+          )}
         </NavbarGroup>
       </Navbar>
 
@@ -327,9 +409,9 @@ export function App() {
           ● {health ? (health.ok ? '本地服务已连接' : '本地服务断开') : '连接中…'}
         </span>
         <span>队列：运行 {health?.queue?.running ?? 0} · 排队 {health?.queue?.queued ?? 0}</span>
-        <span>设备：{health?.device || '—'}</span>
-        <span>项目：{health?.projects || meta.active_project?.id || '—'}</span>
-        <span style={{ marginLeft: 'auto' }}>任务不会因关闭页面而中断</span>
+        <span className="cf-status-hide">设备：{health?.device || '—'}</span>
+        <span className="cf-status-hide">项目：{health?.projects || meta.active_project?.id || '—'}</span>
+        <span className="cf-status-hide" style={{ marginLeft: 'auto' }}>任务不会因关闭页面而中断</span>
       </div>
 
       <Drawer isOpen={helpOpen} onClose={() => setHelpOpen(false)} size={330} title={help.title + ' · 说明'}>
@@ -344,8 +426,9 @@ export function App() {
         </div>
       </Drawer>
 
-      <Dialog isOpen={renameOpen} onClose={() => setRenameOpen(false)} title="项目名称" style={{ width: 360 }}>
-        <div style={{ padding: 12 }}>
+      <Dialog isOpen={renameOpen} onClose={() => setRenameOpen(false)} title="项目名称"
+              style={{ width: 'min(360px, 92vw)' }}>
+        <div className="cf-dialog-body" style={{ padding: 12 }}>
           <InputGroup value={projectName} onChange={(event) => setProjectName(event.currentTarget.value)} />
           <div style={{ marginTop: 10, display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
             <Button onClick={() => setRenameOpen(false)}>取消</Button>
@@ -362,8 +445,9 @@ export function App() {
         </div>
       </Dialog>
 
-      <Dialog isOpen={envOpen} onClose={() => setEnvOpen(false)} title="环境状态" style={{ width: 520 }}>
-        <div style={{ padding: 12, fontSize: 12.4 }}>
+      <Dialog isOpen={envOpen} onClose={() => setEnvOpen(false)} title="环境状态"
+              style={{ width: 'min(520px, 92vw)' }}>
+        <div className="cf-dialog-body" style={{ padding: 12, fontSize: 12.4 }}>
           {envError ? <Callout intent="danger" compact>{envError}</Callout> : null}
           {!envData && !envError ? <Spinner size={16} /> : null}
           {envData ? (
@@ -395,8 +479,9 @@ export function App() {
         </div>
       </Dialog>
 
-      <Dialog isOpen={createOpen} onClose={() => setCreateOpen(false)} title="新建项目" style={{ width: 380 }}>
-        <div style={{ padding: 12 }}>
+      <Dialog isOpen={createOpen} onClose={() => setCreateOpen(false)} title="新建项目"
+              style={{ width: 'min(380px, 92vw)' }}>
+        <div className="cf-dialog-body" style={{ padding: 12 }}>
           <p className="cf-sub">项目用于分开管理数据集登记与任务记录；不会移动或删除已有文件。</p>
           <InputGroup placeholder="项目名称，例如：造血分化"
                       value={newProjectName}
@@ -418,8 +503,9 @@ export function App() {
         </div>
       </Dialog>
 
-      <Dialog isOpen={manageOpen} onClose={() => setManageOpen(false)} title="项目管理" style={{ width: 560 }}>
-        <div style={{ padding: 12, fontSize: 12.4 }}>
+      <Dialog isOpen={manageOpen} onClose={() => setManageOpen(false)} title="项目管理"
+              style={{ width: 'min(560px, 92vw)' }}>
+        <div className="cf-dialog-body" style={{ padding: 12, fontSize: 12.4 }}>
           <p className="cf-sub">
             归档后项目从下拉框隐藏，但数据与任务保留；删除只允许空项目，且不能是默认或当前项目。
           </p>

@@ -32,13 +32,26 @@ export function Overview(props: {
   const [error, setError] = useState('');
   const [stateFilter, setStateFilter] = useState('');
   const [query, setQuery] = useState('');
-  const [page, setPage] = useState(1);
+  /**
+   * F33：页码按项目分别记录——切换项目自动回到第 1 页（offset 归零），
+   * 不依赖渲染阶段的 setState，也不会把 A 项目的页码带到 B 项目。
+   */
+  const [pages, setPages] = useState<Record<string, number>>({});
+  /** F33：服务端返回的项目内总数（不是本页条数）。 */
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<any>(null);
   const [detailError, setDetailError] = useState('');
   const runsTracker = useRef(createTracker()).current;
   const detailTracker = useRef(createTracker()).current;
   const detailAbort = useRef<AbortController | null>(null);
+  const projectId = meta.active_project?.id || meta.project?.name || '';
+  const page = pages[projectId] || 1;
+  const setPage = (next: number) => setPages((current) => ({
+    ...current,
+    [projectId]: Math.max(1, Math.floor(Number(next) || 1)),
+  }));
 
   useEffect(() => () => {
     detailAbort.current?.abort();
@@ -48,29 +61,41 @@ export function Overview(props: {
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       const token = runsTracker.begin();
-      api.runs({ state: stateFilter, q: query }, controller.signal)
-        .then((data) => { if (runsTracker.current(token)) setRuns(data.runs); })
+      const offset = (page - 1) * PAGE_SIZE;
+      // F33：服务端分页（limit 上限 200，这里每页 50）；total 来自服务端，
+      // 不能用本页条数推断总数，也不能本地切片假装分页。
+      setLoading(true);
+      api.runs({ state: stateFilter, q: query, limit: PAGE_SIZE, offset }, controller.signal)
+        .then((data) => {
+          if (!runsTracker.current(token)) return;
+          setRuns(data.runs);
+          setTotal(Number.isFinite(data.total) ? Number(data.total) : data.runs.length);
+        })
         .catch((exc) => {
           if (runsTracker.current(token) && !isAbortError(exc)) setError(String(exc));
+        })
+        .finally(() => {
+          if (runsTracker.current(token)) setLoading(false);
         });
     }, 200);
     return () => {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [meta, stateFilter, query]);
+  }, [meta, stateFilter, query, page]);
 
-  // 筛选条件变化时回到第 1 页
+  // 筛选 / 搜索变化时 offset 归零（页码回到第 1 页）
   useEffect(() => {
     setPage(1);
   }, [stateFilter, query]);
 
-  const pageCount = Math.max(1, Math.ceil(runs.length / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(Math.max(total, 0) / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
   const pageStart = (currentPage - 1) * PAGE_SIZE;
-  const pageRows = runs.slice(pageStart, pageStart + PAGE_SIZE);
+  /** 服务端已按 limit/offset 返回本页数据，此处不再本地切片。 */
+  const pageRows = runs;
 
-  // 任务变少（筛选/删除）导致当前页越界时，收敛到最后一页
+  // 任务变少（筛选/删除）导致当前页越界时，收敛到最后一页（会触发一次按新 offset 的请求）
   useEffect(() => {
     if (page > pageCount) setPage(pageCount);
   }, [page, pageCount]);
@@ -80,7 +105,8 @@ export function Overview(props: {
     [meta.datasets],
   );
   const counts = meta.counts || {};
-  const active = runs.filter((run) => ACTIVE.has(run.state));
+  // F33：进行中/已完成必须读项目级计数（/api/meta.counts），不能只看当前页。
+  const activeCount = (counts.running || 0) + (counts.queued || 0);
 
   const cancel = async (id: string) => {
     try {
@@ -111,7 +137,8 @@ export function Overview(props: {
 
       <div className="cf-sec">最近任务 <span className="h">按名称检索；只显示本项目的任务</span></div>
       <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
-        <HTMLSelect value={stateFilter} onChange={(event) => setStateFilter(event.currentTarget.value)}
+        <HTMLSelect value={stateFilter}
+                    onChange={(event) => { setStateFilter(event.currentTarget.value); setPage(1); }}
                     style={{ width: 120, height: 28 }}>
           <option value="">全部状态</option>
           <option value="queued">排队</option>
@@ -122,7 +149,8 @@ export function Overview(props: {
         </HTMLSelect>
         <div style={{ flex: 1, minWidth: 220 }}>
           <InputGroup leftIcon="search" placeholder="按任务名称或 ID 搜索"
-                      value={query} onChange={(event) => setQuery(event.currentTarget.value)} />
+                      value={query}
+                      onChange={(event) => { setQuery(event.currentTarget.value); setPage(1); }} />
         </div>
         <Button icon="refresh" onClick={refresh}>刷新</Button>
       </div>
@@ -183,6 +211,7 @@ export function Overview(props: {
                       try {
                         await api.deleteRun(run.id);
                         setRuns((current) => current.filter((item) => item.id !== run.id));
+                        setTotal((value) => Math.max(0, value - 1));
                         notify('ok', '已删除任务记录');
                       } catch (exc) {
                         notify('bad', `删除失败：${exc}`);
@@ -198,7 +227,9 @@ export function Overview(props: {
           display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 6,
         }}>
           <span className="cf-sub" style={{ fontVariantNumeric: 'tabular-nums' }}>
-            共 {runs.length} 条 · 当前显示第 {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, runs.length)} 条
+            共 {total} 条 · 本页第 {pageStart + 1}–{pageStart + runs.length} 条
+            {total > PAGE_SIZE ? `（每页 ${PAGE_SIZE} 条）` : ''}
+            {loading ? ' · 载入中…' : ''}
           </span>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
             <Button small minimal icon="chevron-left" disabled={currentPage <= 1}
@@ -278,26 +309,27 @@ export function Overview(props: {
       <div className="cf-sec">下一步</div>
       {datasets.length === 0 ? (
         <Callout intent="primary" compact>进入「数据」，上传或选择本机数据文件。</Callout>
-      ) : runs.length === 0 ? (
+      ) : total === 0 ? (
         <Callout intent="primary" compact>数据已就绪。进入「模型分析」，确认前置条件后运行一个方法。</Callout>
-      ) : active.length ? (
+      ) : activeCount ? (
         <Callout intent="warning" compact>
-          有 {active.length} 个任务在运行或排队。离开窗口不会中断；不要重复提交相同配置（会复用）。
+          有 {activeCount} 个任务在运行或排队。离开窗口不会中断；不要重复提交相同配置（会复用）。
         </Callout>
       ) : (
         <Callout intent="success" compact>到「分析结果」检查图与指标，再到「报告」导出 A/B。</Callout>
       )}
 
-      <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+      <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <Button intent="primary" onClick={() => onNavigate('data')}>导入数据</Button>
         <Button onClick={() => onNavigate('model')}>运行模型</Button>
-        <Button onClick={() => onNavigate('results')} disabled={!runs.some((run) => run.state === 'completed')}>
+        <Button onClick={() => onNavigate('results')} disabled={!(counts.completed || 0)}>
           查看结果
         </Button>
       </div>
 
-      <Dialog isOpen={detailOpen} onClose={() => setDetailOpen(false)} title="数据集详情" style={{ width: 560 }}>
-        <div style={{ padding: 12, fontSize: 12.4 }}>
+      <Dialog isOpen={detailOpen} onClose={() => setDetailOpen(false)} title="数据集详情"
+              style={{ width: 'min(560px, 92vw)' }}>
+        <div className="cf-dialog-body" style={{ padding: 12, fontSize: 12.4 }}>
           {detailError ? <Callout intent="danger" compact>{detailError}</Callout> : null}
           {!detail && !detailError ? <Spinner size={16} /> : null}
           {detail ? (

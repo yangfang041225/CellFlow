@@ -122,3 +122,90 @@ html, body, #root {
 }
 .cf-status-ok { color: #238551; }
 .cf-status-bad { color: #cd4246; }
+
+/* ------------------------------------------------------------------ F35 窄屏
+   Qt 窗口默认 1180×780、最小 980×620（cellflow/desktop_qt.py）。
+   窄屏只做两件事：把双栏收成单栏、把工具栏收进「更多」；不缩放字体、不隐藏信息。 */
+
+/* 工具栏：单行、不换行、不遮挡内容 */
+.bp6-navbar { overflow: hidden; }
+.bp6-navbar .bp6-navbar-group { flex-wrap: nowrap; gap: 2px; }
+.cf-navbar .cf-crumb {
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 1180 默认宽度下计数标签先让位，保证右侧动作按钮完整可见（1080 以下整组收进「更多」）。 */
+@media (max-width: 1400px) {
+  .cf-nav-counts { display: none !important; }
+}
+
+/* 双栏 → 单栏 */
+.cf-model-grid {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.cf-data-grid {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.cf-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* 对话框限高、可滚动；宽度随视口收敛 */
+.cf-dialog-body { max-height: calc(100vh - 150px); overflow: auto; }
+
+/* F38 方法说明短卡 */
+.cf-method-card {
+  border: 1px solid var(--cf-line);
+  background: #fafbfc;
+  padding: 7px 10px;
+  margin-bottom: 8px;
+}
+.cf-method-card > summary { cursor: pointer; }
+.cf-method-card > summary::-webkit-details-marker { color: #8b939b; }
+.cf-method-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+  margin-top: 4px;
+}
+.cf-card-list {
+  margin: 2px 0 0 16px;
+  padding: 0;
+  font-size: 12.2px;
+  line-height: 1.62;
+}
+.cf-card-list li { margin-bottom: 2px; }
+
+/* 结果页：主图优先、诊断图网格 */
+.cf-fig-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 1080px) {
+  .cf-model-grid,
+  .cf-data-grid,
+  .cf-form-grid,
+  .cf-method-grid { grid-template-columns: minmax(0, 1fr); }
+  .cf-side { width: 168px; min-width: 168px; }
+  .cf-main { padding: 10px 10px 24px 10px; }
+  .cf-navbar .cf-crumb { max-width: 170px; }
+  .cf-statusbar { flex-wrap: wrap; height: auto; min-height: 24px; gap: 10px; }
+  .cf-statusbar .cf-status-hide { display: none; }
+  .cf-fig-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-height: 700px) {
+  .cf-dock { height: calc(100vh - 250px); min-height: 280px; }
+}

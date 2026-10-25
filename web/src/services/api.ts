@@ -68,6 +68,28 @@ export type RunDetail = {
   };
 };
 
+export type RunCompare = {
+  a: string; b: string;
+  changes: { key: string; a: unknown; b: unknown }[];
+  same: boolean;
+  metric_changes?: { key: string; a: unknown; b: unknown }[];
+  figures?: { a: string[]; b: string[] };
+  /** 两张嵌入图能否按同一坐标直接比较（要求输入/预处理/参数/实际坐标都一致）。 */
+  can_compare_figures?: boolean;
+  /** 不能同坐标比较时的逐条原因（界面逐条展示，不合并成一句话）。 */
+  reasons?: string[];
+  compare_reason?: string;
+  side_by_side?: boolean;
+  same_coordinates?: boolean;
+  same_input_identity?: boolean;
+  metrics_comparable?: boolean;
+  metrics_note?: string;
+  input_identity?: {
+    cells_hash?: string | null; genes_hash?: string | null;
+    preprocessing_hash?: string | null; embedding_hash?: string | null;
+  };
+};
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
   if (!response.ok) {
@@ -106,14 +128,19 @@ export const api = {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source, identifier }),
     }),
-  runs: (params?: { state?: string; method?: string; dataset?: string; q?: string; limit?: number },
-         signal?: AbortSignal) => {
+  runs: (params?: {
+    state?: string; method?: string; dataset?: string; q?: string; limit?: number; offset?: number;
+  }, signal?: AbortSignal) => {
     const search = new URLSearchParams();
     Object.entries(params || {}).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') search.set(key, String(value));
     });
     const suffix = search.toString();
-    return request<{ runs: Run[] }>('/api/runs' + (suffix ? '?' + suffix : ''), signalOptions(signal));
+    // F33：服务端分页。total 是本项目内符合条件的总数（不是本页条数），
+    // limit 默认 100 / 上限 200，offset 生效。
+    return request<{
+      runs: Run[]; total: number; limit: number; offset: number; has_more: boolean;
+    }>('/api/runs' + (suffix ? '?' + suffix : ''), signalOptions(signal));
   },
   cancel: (id: string) => request<{ ok: boolean; message: string }>(`/api/runs/${id}/cancel`, { method: 'POST' }),
   run: (id: string, signal?: AbortSignal) =>
@@ -181,15 +208,7 @@ export const api = {
   }>(`/api/datasets/${id}/detail`, signalOptions(signal)),
   pdfUrl: (id: string, kind: 'a' | 'b') => `/api/runs/${id}/report/${kind}/pdf`,
   compareRuns: (id: string, other: string, signal?: AbortSignal) =>
-    request<{
-      a: string; b: string;
-      changes: { key: string; a: unknown; b: unknown }[];
-      same: boolean;
-      metric_changes?: { key: string; a: unknown; b: unknown }[];
-      figures?: { a: string[]; b: string[] };
-      can_compare_figures?: boolean;
-      compare_reason?: string;
-    }>(`/api/runs/${id}/compare/${other}`, signalOptions(signal)),
+    request<RunCompare>(`/api/runs/${id}/compare/${other}`, signalOptions(signal)),
   renameProject: (name: string) =>
     request<{ ok: boolean }>('/api/project', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

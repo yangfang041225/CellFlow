@@ -41,7 +41,8 @@ export function ReportsView(props: {
   useEffect(() => {
     const controller = new AbortController();
     const token = runsTracker.begin();
-    api.runs(undefined, controller.signal)
+    // F33：服务端分页后 limit 默认 100；报告下拉取上限 200。
+    api.runs({ limit: 200 }, controller.signal)
       .then((data) => {
         if (!runsTracker.current(token)) return;
         setRuns(data.runs.filter((run) => run.state === 'completed' || run.state === 'failed'));
@@ -112,7 +113,7 @@ export function ReportsView(props: {
 
       {scoped.length ? (
         <>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '6px 0' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', margin: '6px 0' }}>
             <HTMLSelect value={runId} onChange={(event) => setRunId(event.currentTarget.value)}>
               {scoped.map((run) => (
                 <option key={run.id} value={run.id}>
@@ -122,7 +123,7 @@ export function ReportsView(props: {
             </HTMLSelect>
             <Tag minimal>当前：{kind === 'a' ? 'A 生物学' : 'B 技术与复现'}</Tag>
             {runId ? (
-              <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 <a href={api.zipUrl(runId)} download><Button icon="download">打包 ZIP</Button></a>
                 <a href={api.pdfUrl(runId, kind)} download>
                   <Button icon="document">导出 PDF</Button>
