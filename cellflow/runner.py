@@ -351,6 +351,11 @@ def run(input_path, config, folder):
                 stage = 'quality'
                 details = '；'.join(quality.get('warnings', [])[:3]) or '见 quality.json'
                 raise RuntimeError('结果结构校验失败：' + details)
+            from .evidence import assess
+            levels = assess(result, quality, provenance, folder)
+            result['evidence_levels'] = levels
+            provenance['evidence_levels'] = levels
+            dump_json(folder / 'result.json', result)
             provenance['status'] = 'completed'
             log('结果序列化与图形导出完成')
         except Exception as exc:

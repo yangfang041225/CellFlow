@@ -1693,6 +1693,9 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
         if result.get('evidence'):
             bio.append('### 4.11 证据来源\n\n' + '\n'.join('- ' + _md(item)
                                                           for item in result['evidence']))
+        if result.get('evidence_levels'):
+            from .evidence import markdown as evidence_markdown
+            bio.append(evidence_markdown(result['evidence_levels']))
 
     # 5. 参数解释
     dynamics_used = 'recover_dynamics' in (info.get('steps') or [])
@@ -1838,6 +1841,11 @@ def write_reports(folder, facts, qc, result, config, provenance, error=None, fmt
                 + _fenced(prov.get('reproduce_command', '未知')) + '\n'
                 '3. 若报告状态为 failed，先看 `run.log`；修复后建议复现到新目录，不要覆盖旧结果。'
                 '\n4. `source/` 保存了本次运行时的完整源码副本，可用于对照或重放。')
+
+    if result.get('evidence_levels'):
+        from .evidence import markdown as evidence_markdown
+        tech.append('## 7.1 证据等级（技术记录）\n\n' +
+                    evidence_markdown(result['evidence_levels']).replace('### 4.12', '###'))
 
     files = []
     for name in ('config.json', 'environment.json', 'validation.json', 'format.json',
