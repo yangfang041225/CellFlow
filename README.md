@@ -317,7 +317,7 @@ python install.py --check
 .venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-当前记录 **276 个测试**（2026-10-25 21:52 全量运行，见 [测试报告](docs/test_report.md)）；
+当前记录 **278 个测试**（2026-10-25 21:52 全量运行，见 [测试报告](docs/test_report.md)）；
 本次另新增 `tests/test_install_checks.py`（13 项），**未重跑全量**，所以总数未复核。
 覆盖范围：
 

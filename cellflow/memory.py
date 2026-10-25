@@ -32,36 +32,76 @@ def available_bytes():
         return 0
 
 
+def _h5_group_shape(group):
+    """返回 (rows, cols, nnz, kind) 或 None。"""
+    try:
+        if 'data' in group and 'indptr' in group:
+            nnz = int(group['data'].shape[0])
+            rows = int(group['indptr'].shape[0] - 1)
+            shape = group.attrs.get('shape')
+            cols = int(shape[1]) if shape is not None and len(shape) > 1 else 0
+            return rows, cols, nnz, 'sparse'
+        if 'shape' in group.attrs and len(group.attrs['shape']) == 2:
+            shape = group.attrs['shape']
+            return int(shape[0]), int(shape[1]), 0, 'dense'
+    except Exception:
+        return None
+    return None
+
+
 def _h5_shape(path: Path):
-    """返回 (n_cells, n_genes, nnz, 说明)；失败返回 None。"""
+    """返回 (n_cells, n_genes, nnz, 说明)。
+
+    除 /X 外，把 /layers/*（spliced/unspliced 等）和 /raw/X 也计入，
+    避免“只按 X 估算”低估 RNA velocity 任务的峰值内存。
+    """
     try:
         import h5py
         with h5py.File(path, 'r') as handle:
-            # AnnData: /X 可能是 dense dataset，也可能是 sparse group
+            entries = []
             x = handle.get('X')
             if x is not None:
                 if isinstance(x, h5py.Group):
-                    data = x.get('data')
-                    indices = x.get('indices')
-                    indptr = x.get('indptr')
-                    nnz = int(data.shape[0]) if data is not None else 0
-                    n_cells = int(indptr.shape[0] - 1) if indptr is not None else 0
-                    shape = x.attrs.get('shape')
-                    n_genes = int(shape[1]) if shape is not None and len(shape) > 1 else 0
-                    return n_cells, n_genes, nnz, 'sparse'
-                return int(x.shape[0]), int(x.shape[1]), 0, 'dense'
-            # loom: /matrix
+                    info = _h5_group_shape(x)
+                    if info:
+                        entries.append(('X', info))
+                else:
+                    entries.append(('X', (int(x.shape[0]), int(x.shape[1]), 0, 'dense')))
+            layers = handle.get('layers')
+            layer_count = 0
+            if isinstance(layers, h5py.Group):
+                for name in layers:
+                    item = layers[name]
+                    if isinstance(item, h5py.Group):
+                        info = _h5_group_shape(item)
+                    else:
+                        info = (int(item.shape[0]), int(item.shape[1]), 0, 'dense')
+                    if info:
+                        entries.append(('layer:' + name, info))
+                        layer_count += 1
+            raw = handle.get('raw')
+            if isinstance(raw, h5py.Group) and 'X' in raw:
+                item = raw['X']
+                if isinstance(item, h5py.Group):
+                    info = _h5_group_shape(item)
+                else:
+                    info = (int(item.shape[0]), int(item.shape[1]), 0, 'dense')
+                if info:
+                    entries.append(('raw/X', info))
             matrix = handle.get('matrix')
-            if matrix is not None and hasattr(matrix, 'shape'):
-                return int(matrix.shape[0]), int(matrix.shape[1]), 0, 'dense'
-            # 10x h5: /matrix/data + shape
-            if 'matrix' in handle:
-                group = handle['matrix']
-                shape = group.attrs.get('shape')
-                if shape is not None and len(shape) == 2:
-                    data = group.get('data')
-                    nnz = int(data.shape[0]) if data is not None else 0
-                    return int(shape[0]), int(shape[1]), nnz, 'sparse'
+            if matrix is not None and 'shape' in getattr(matrix, 'attrs', {}):
+                info = _h5_group_shape(matrix)
+                if info:
+                    entries.append(('10x/matrix', info))
+            if not entries:
+                return None
+            n_cells = max(item[0] for _, item in entries)
+            n_genes = max(item[1] for _, item in entries)
+            nnz = sum(item[2] for _, item in entries)
+            dense = sum(item[0] * item[1] for name, item in entries if item[3] == 'dense')
+            kind = 'sparse' if nnz else 'dense'
+            note = kind + (f'（{layer_count} 个层）' if layer_count else '')
+            return n_cells, n_genes, nnz, note, dense
     except Exception:
         return None
     return None
@@ -78,12 +118,12 @@ def estimate(path):
         shape = _h5_shape(path)
 
     if shape:
-        n_cells, n_genes, nnz, kind = shape
-        if kind == 'sparse' and nnz:
+        n_cells, n_genes, nnz, kind, dense_items = shape
+        if nnz:
             # CSR：data(float64) + indices(int32) + indptr(int32) + AnnData 开销
-            peak = nnz * (8 + 4 + 4) + n_cells * 256 + n_genes * 64
+            peak = nnz * (8 + 4 + 4) + n_cells * 256 + n_genes * 64 + dense_items * 8
         else:
-            peak = max(int(n_cells) * int(n_genes) * 8, size * 2)
+            peak = max(int(n_cells) * int(n_genes) * 8 + dense_items * 8, size * 2)
         method = f'{kind} {n_cells}×{n_genes}'
     elif suffix in ('.csv', '.tsv', '.txt'):
         peak, method = int(size * 4), '文本表 ×4'

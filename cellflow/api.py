@@ -840,11 +840,19 @@ def run_zip(job_id: str, full: int = 0):
         input_hash = _file_sha256(input_path)
         size = input_path.stat().st_size
         hashes['input/' + input_path.name] = input_hash
-        if full and size <= 100 * 1024 * 1024:
+        if full and size <= 200 * 1024 * 1024:
             assets.append((input_path, 'input/' + input_path.name))
         else:
             external.append({'name': input_path.name, 'sha256': input_hash, 'bytes': size,
                              'note': '输入未打包（体积/隐私）；按哈希在本地放置后可复跑'})
+    model_budget = 200 * 1024 * 1024
+    for model_dir in (folder / 'velovi_model', folder / 'model'):
+        if full and model_dir.is_dir():
+            for path in sorted(model_dir.rglob('*')):
+                if path.is_file() and model_budget - path.stat().st_size >= 0:
+                    model_budget -= path.stat().st_size
+                    rel = str(path.relative_to(model_dir)).replace(chr(92), '/')
+                    assets.append((path, 'model/' + rel))
     source_dir = folder / 'source'
     if full and source_dir.is_dir():
         for path in sorted(source_dir.rglob('*')):

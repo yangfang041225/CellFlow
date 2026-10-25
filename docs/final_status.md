@@ -6,13 +6,13 @@
 
 CellFlow 已可作为本机（Windows / 16 GB / 无 NVIDIA GPU）的单细胞动力学科研工作台使用：
 11 个方法可真实运行，任务队列/结果/报告/导出/数据管理/项目隔离/内存保护均已实现，
-**276 项自动化测试通过**；剩余主要是**需要人工在桌面窗口点一次的验收**与明确标注的可选扩展。
+**278 项自动化测试通过**；剩余主要是**需要人工在桌面窗口点一次的验收**与明确标注的可选扩展。
 
 ## 证据（可复跑）
 
 | 项 | 命令 / 位置 | 结果 |
 |---|---|---|
-| 单元/集成测试 | `.venv\Scripts\python.exe -m unittest discover -s tests` | **276 通过**（约 199 s） |
+| 单元/集成测试 | `.venv\Scripts\python.exe -m unittest discover -s tests` | **278 通过**（约 207 s） |
 | 前端类型与构建 | `cd web && npx tsc --noEmit && npm run build` | tsc 0；build 成功 |
 | 依赖一致性 | `uv pip check --python .venv\Scripts\python.exe` | 115 个包兼容 |
 | Python 语法 | `python -m compileall cellflow tools install.py` | 通过 |

@@ -74,6 +74,31 @@ class Pagination(unittest.TestCase):
         self.assertIn('_omitted', compact['result'])
         self.assertIn('embedding', full['result'])
 
+    def test_full_zip_includes_small_model_directory(self):
+        import io
+        import json
+        import tempfile
+        import zipfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'result.json').write_text(json.dumps({'metrics': {}}), encoding='utf-8')
+            (root / 'config.json').write_text(json.dumps({'method': 'velovi'}), encoding='utf-8')
+            figures = root / 'figures'
+            figures.mkdir()
+            (figures / 'qc.svg').write_text('<svg/>', encoding='utf-8')
+            model = root / 'model'
+            model.mkdir()
+            (model / 'weights.bin').write_bytes(b'w' * 64)
+            fake = {'id': 'fake', 'output': str(root), 'method': 'qc', 'state': 'completed',
+                    'input': ''}
+            with mock.patch.object(api, '_job', return_value=fake), \
+                    mock.patch.object(api, '_ensure_report_pdf', return_value=None):
+                response = self.client.get('/api/runs/fake/zip?full=1')
+        self.assertEqual(response.status_code, 200)
+        names = zipfile.ZipFile(io.BytesIO(response.content)).namelist()
+        self.assertIn('model/weights.bin', names)
+
 
 if __name__ == '__main__':
     unittest.main()

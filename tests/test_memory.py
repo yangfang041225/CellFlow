@@ -65,5 +65,29 @@ class Memory(unittest.TestCase):
         self.assertIn('拒绝加载', response.json()['detail'])
 
 
+class H5LayerEstimate(unittest.TestCase):
+    def test_layers_increase_estimate(self):
+        import tempfile
+        from pathlib import Path
+        import anndata as ad
+        import numpy as np
+        import scipy.sparse as sp
+        from cellflow.memory import estimate
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            x = sp.random(40, 30, density=0.1, format='csr', dtype=np.float32)
+            plain = ad.AnnData(X=x.copy())
+            plain.write_h5ad(root / 'plain.h5ad')
+            layered = ad.AnnData(X=x.copy())
+            layered.layers['spliced'] = x.copy()
+            layered.layers['unspliced'] = x.copy()
+            layered.write_h5ad(root / 'layered.h5ad')
+            plain_info = estimate(root / 'plain.h5ad')
+            layered_info = estimate(root / 'layered.h5ad')
+        self.assertGreater(layered_info['bytes'], plain_info['bytes'])
+        self.assertIn('层', layered_info['method'])
+
+
 if __name__ == '__main__':
     unittest.main()
