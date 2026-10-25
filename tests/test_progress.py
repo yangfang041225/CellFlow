@@ -20,10 +20,12 @@ class LiveStage(unittest.TestCase):
                 'method': 'qc', 'seed': 1, 'n_top_genes': 60, 'n_neighbors': 10,
                 'n_pcs': 10, 'raw_x_confirmed': True,
             }), encoding='utf-8')
+            errlog = Path(folder) / 'stderr.log'
+            error_handle = open(errlog, 'wb')
             process = subprocess.Popen(
                 [sys.executable, '-m', 'cellflow.cli', 'run',
                  '--input', str(DEMO), '--config', str(config), '--output', str(out)],
-                cwd=str(ROOT), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                cwd=str(ROOT), stdout=subprocess.DEVNULL, stderr=error_handle)
             seen = set()
             deadline = time.time() + 120
             while time.time() < deadline:
@@ -37,7 +39,12 @@ class LiveStage(unittest.TestCase):
                     break
                 time.sleep(0.05)
             process.wait(timeout=60)
-            self.assertEqual(process.returncode, 0)
+            error_handle.close()
+            tail = errlog.read_text(encoding='utf-8', errors='replace')[-1500:] if errlog.exists() else ''
+            runlog = out / 'run.log'
+            if runlog.exists():
+                tail += '\n--- run.log ---\n' + runlog.read_text(encoding='utf-8', errors='replace')[-2500:]
+            self.assertEqual(process.returncode, 0, tail)
             seen.discard(None)
             self.assertIn('reports', seen, seen)
             self.assertGreaterEqual(len(seen), 2, f'运行中应看到多个阶段：{seen}')

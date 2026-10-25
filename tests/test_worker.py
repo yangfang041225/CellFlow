@@ -31,8 +31,10 @@ class Worker(unittest.TestCase):
                 break
             time.sleep(0.25)
         self.assertIsNotNone(job, 'worker 没有处理任务')
-        self.assertEqual(job['state'], 'completed',
-                         (job.get('error'), (store / 'worker.log').read_text(encoding='utf-8')[-1500:]))
+        output_dir = Path(job['output'])
+        runlog = (output_dir / 'run.log')
+        detail = runlog.read_text(encoding='utf-8', errors='replace')[-2500:] if runlog.exists() else ''
+        self.assertEqual(job['state'], 'completed', (job.get('error'), detail))
         output = Path(job['output'])
         self.assertTrue((output / 'result.json').is_file())
         self.assertTrue((output / 'A_生物学分析报告.md').is_file())

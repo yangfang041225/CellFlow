@@ -62,7 +62,7 @@ jobs:
           .venv\Scripts\python.exe -m pip install --upgrade pip
           .venv\Scripts\python.exe -m pip install -r requirements.txt -r requirements-cellrank.txt
           # pypdf 只用于 PDF 断言，产品运行不需要，未列入 requirements.txt；故在此显式安装并固定版本。
-          .venv\Scripts\python.exe -m pip install "pypdf==6.21.2"
+          .venv\Scripts\python.exe -m pip install "pypdf==6.21.2" "httpx2"
 
       - name: Dependency consistency
         run: .venv\Scripts\python.exe -m pip check

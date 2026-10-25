@@ -40,12 +40,16 @@ class Projects(unittest.TestCase):
         source = self.store / 'sample.h5ad'
         source.write_bytes(b'placeholder')
         workspace.register_dataset(source)
-        default_rows = workspace.list_datasets(project='default')
-        self.assertTrue(any(row['path'] == source for row in default_rows))
+        default_id = workspace.active_project()['id']
+        default_rows = workspace.list_datasets(project=default_id)
+        self.assertTrue(any(str(Path(row['path']).resolve()) == str(source.resolve())
+                            for row in default_rows))
         other = workspace.create_project('另一个项目')
-        self.assertFalse(any(row['path'] == source for row in workspace.list_datasets(project=other['id'])))
+        self.assertFalse(any(str(Path(row['path']).resolve()) == str(source.resolve())
+                             for row in workspace.list_datasets(project=other['id'])))
         workspace.register_dataset(source)
-        self.assertTrue(any(row['path'] == source for row in workspace.list_datasets(project=other['id'])))
+        self.assertTrue(any(str(Path(row['path']).resolve()) == str(source.resolve())
+                            for row in workspace.list_datasets(project=other['id'])))
 
     def test_queue_filters_by_project(self):
         from cellflow import queue

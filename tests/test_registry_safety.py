@@ -36,11 +36,13 @@ class RegistrySafety(unittest.TestCase):
         source = self.store / 'data.h5ad'
         source.write_bytes(b'x')
         workspace.register_dataset(source)  # default
+        default_id = workspace.active_project()['id']
         other = workspace.create_project('B')
         workspace.register_dataset(source)  # B
         self.assertTrue(workspace.unregister_dataset(source, project=other['id']))
-        default_rows = workspace.list_datasets(project='default')
-        self.assertTrue(any(row['path'] == source for row in default_rows))
+        default_rows = workspace.list_datasets(project=default_id)
+        self.assertTrue(any(str(Path(row['path']).resolve()) == str(source.resolve())
+                            for row in default_rows))
         b_rows = workspace.list_datasets(project=other['id'])
         self.assertFalse(any(row['path'] == source for row in b_rows))
         self.assertTrue(source.exists(), '移除登记不能删文件')
