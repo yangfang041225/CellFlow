@@ -1,0 +1,774 @@
+{
+ "generated_at": "2026-10-26T08:00:56+08:00",
+ "python": {
+  "interpreter": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\.venv\\Scripts\\python.exe",
+  "version": "3.11.15",
+  "pip_error": null,
+  "installed_count": 108,
+  "installed": {
+   "altair": "6.3.0",
+   "anndata": "0.12.19",
+   "annotated-doc": "0.0.5",
+   "annotated-types": "0.8.0",
+   "anyio": "4.15.1",
+   "array-api-compat": "1.15.0",
+   "attrs": "26.1.0",
+   "cellrank": "2.0.7",
+   "certifi": "2026.10.23",
+   "charset-normalizer": "3.5.2",
+   "click": "8.5.0",
+   "cloudpickle": "3.1.2",
+   "colorama": "0.4.6",
+   "contourpy": "1.3.3",
+   "cycler": "0.12.1",
+   "docrep": "0.3.2",
+   "donfig": "0.8.1.post1",
+   "fastapi": "0.162.0",
+   "fonttools": "4.67.0",
+   "formulaic": "1.2.2",
+   "google-crc32c": "1.9.0",
+   "h11": "0.16.0",
+   "h5py": "3.16.0",
+   "httpcore2": "2.16.0",
+   "httpx2": "2.16.0",
+   "idna": "3.20",
+   "igraph": "0.11.9",
+   "iniconfig": "2.3.1",
+   "interface_meta": "2.0.1",
+   "itsdangerous": "2.2.0",
+   "Jinja2": "3.1.6",
+   "joblib": "1.6.0",
+   "jsonschema": "4.26.0",
+   "jsonschema-specifications": "2025.9.1",
+   "kiwisolver": "1.5.1",
+   "legacy-api-wrap": "1.5",
+   "llvmlite": "0.50.0",
+   "loompy": "3.0.8",
+   "Markdown": "3.11.2",
+   "MarkupSafe": "3.0.4",
+   "matplotlib": "3.11.2",
+   "narwhals": "2.27.1",
+   "natsort": "8.4.0",
+   "networkx": "3.6.1",
+   "numba": "0.68.0",
+   "numcodecs": "0.16.6",
+   "numpy": "2.2.6",
+   "numpy-groupies": "0.15.0",
+   "opentelemetry-api": "1.45.1",
+   "packaging": "26.3",
+   "pandas": "2.3.3",
+   "patsy": "1.0.3",
+   "pillow": "13.0.0",
+   "pip": "24.0",
+   "plotly": "6.9.0",
+   "pluggy": "1.7.0",
+   "progressbar2": "4.6.0",
+   "protobuf": "7.36.2",
+   "pyarrow": "26.0.0",
+   "pydantic": "2.14.1",
+   "pydantic_core": "2.50.1",
+   "pydeck": "0.9.3",
+   "pygam": "0.12.0",
+   "Pygments": "2.21.0",
+   "pygpcca": "1.0.4",
+   "pynndescent": "0.6.0",
+   "pyparsing": "3.3.3",
+   "PySide6": "6.12.0",
+   "PySide6_Addons": "6.12.0",
+   "PySide6_Essentials": "6.12.0",
+   "PySide6_Pdf": "6.12.0.140",
+   "PySide6_WebEngine": "6.12.0.140",
+   "pytest": "9.1.1",
+   "python-dateutil": "3.0.0",
+   "python-multipart": "0.0.32",
+   "python-utils": "4.1.4",
+   "pytz": "2026.5",
+   "PyYAML": "6.0.3",
+   "referencing": "0.37.0",
+   "requests": "2.34.2",
+   "rpds-py": "2026.9.1",
+   "scanpy": "1.11.5",
+   "scikit-learn": "1.9.1",
+   "scipy": "1.15.3",
+   "scvelo": "0.3.4",
+   "scverse-misc": "0.0.3",
+   "seaborn": "0.13.2",
+   "session-info2": "0.4.1",
+   "setuptools": "84.2.1",
+   "shiboken6": "6.12.0",
+   "six": "1.17.0",
+   "starlette": "1.9.0",
+   "statsmodels": "0.15.0",
+   "streamlit": "1.66.1",
+   "texttable": "1.7.2",
+   "threadpoolctl": "3.7.0",
+   "tqdm": "4.70.1",
+   "truststore": "0.10.5",
+   "typing-inspection": "0.4.4",
+   "typing_extensions": "4.16.0",
+   "tzdata": "2026.5",
+   "umap-learn": "0.5.12",
+   "urllib3": "2.8.0",
+   "uvicorn": "0.54.0",
+   "watchdog": "6.0.0",
+   "websockets": "17.3",
+   "wrapt": "2.5.1",
+   "zarr": "3.1.6"
+  },
+  "requirement_files": [
+   "requirements.txt",
+   "requirements-cellrank.txt",
+   "requirements-regvelo.txt",
+   "requirements-velovi.txt"
+  ],
+  "requirements": [
+   {
+    "file": "requirements.txt",
+    "name": "streamlit",
+    "spec": ">=1.49,<2",
+    "raw": "streamlit>=1.49,<2",
+    "marker": ""
+   },
+   {
+    "file": "requirements.txt",
+    "name": "plotly",
+    "spec": ">=6,<7",
+    "raw": "plotly>=6,<7",
+    "marker": ""
+   },
+   {
+    "file": "requirements.txt",
+    "name": "anndata",
+    "spec": ">=0.11,<0.13",
+    "raw": "anndata>=0.11,<0.13",
+    "marker": ""
+   },
+   {
+    "file": "requirements.txt",
+    "name": "scanpy",
+    "spec": ">=1.11,<1.12",
+    "raw": "scanpy>=1.11,<1.12",
+    "marker": ""
+   },
+   {
+    "file": "requirements.txt",
+    "name": "scvelo",
+    "spec": ">=0.3.3,<0.4",
+    "raw": "scvelo>=0.3.3,<0.4",
+    "marker": ""
+   },
+   {
+    "file": "requirements.txt",
+    "name": "numpy",
+    "spec": ">=1.26,<2.3",
+    "raw": "numpy>=1.26,<2.3",
+    "marker": ""
+   },
+   {
+    "file": "requirements.txt",
+    "name": "scipy",
+    "spec": ">=1.13,<1.16",
+    "raw": "scipy>=1.13,<1.16",
+    "marker": ""
+   },
+   {
+    "file": "requirements.txt",
+    "name": "pandas",
+    "spec": ">=2.2,<3",
+    "raw": "pandas>=2.2,<3",
+    "marker": ""
+   },
+   {
+    "file": "requirements.txt",
+    "name": "igraph",
+    "spec": ">=0.11,<0.12",
+    "raw": "igraph>=0.11,<0.12",
+    "marker": ""
+   },
+   {
+    "file": "requirements.txt",
+    "name": "pytest",
+    "spec": ">=8,<10",
+    "raw": "pytest>=8,<10",
+    "marker": ""
+   },
+   {
+    "file": "requirements.txt",
+    "name": "fastapi",
+    "spec": ">=0.115,<1",
+    "raw": "fastapi>=0.115,<1",
+    "marker": ""
+   },
+   {
+    "file": "requirements.txt",
+    "name": "uvicorn",
+    "spec": ">=0.30,<1",
+    "raw": "uvicorn>=0.30,<1",
+    "marker": ""
+   },
+   {
+    "file": "requirements.txt",
+    "name": "python-multipart",
+    "spec": ">=0.0.9",
+    "raw": "python-multipart>=0.0.9",
+    "marker": ""
+   },
+   {
+    "file": "requirements.txt",
+    "name": "markdown",
+    "spec": ">=3.5,<4",
+    "raw": "markdown>=3.5,<4",
+    "marker": ""
+   },
+   {
+    "file": "requirements.txt",
+    "name": "pywebview",
+    "spec": ">=6.0,<7",
+    "raw": "pywebview>=6.0,<7",
+    "marker": ""
+   },
+   {
+    "file": "requirements.txt",
+    "name": "PySide6",
+    "spec": ">=6.8,<7",
+    "raw": "PySide6>=6.8,<7; sys_platform == \"win32\"",
+    "marker": "sys_platform == \"win32\""
+   },
+   {
+    "file": "requirements-cellrank.txt",
+    "name": "cellrank",
+    "spec": "==2.0.7",
+    "raw": "cellrank==2.0.7",
+    "marker": ""
+   },
+   {
+    "file": "requirements-regvelo.txt",
+    "name": "regvelo",
+    "spec": "==0.4.2",
+    "raw": "regvelo==0.4.2",
+    "marker": ""
+   },
+   {
+    "file": "requirements-regvelo.txt",
+    "name": "numpy",
+    "spec": ">=1.26,<2",
+    "raw": "numpy>=1.26,<2",
+    "marker": ""
+   },
+   {
+    "file": "requirements-regvelo.txt",
+    "name": "anndata",
+    "spec": ">=0.10.8,<0.12",
+    "raw": "anndata>=0.10.8,<0.12",
+    "marker": ""
+   },
+   {
+    "file": "requirements-regvelo.txt",
+    "name": "scanpy",
+    "spec": ">=1.10.3,<1.12",
+    "raw": "scanpy>=1.10.3,<1.12",
+    "marker": ""
+   },
+   {
+    "file": "requirements-regvelo.txt",
+    "name": "scvelo",
+    "spec": ">=0.3.3,<0.4",
+    "raw": "scvelo>=0.3.3,<0.4",
+    "marker": ""
+   },
+   {
+    "file": "requirements-regvelo.txt",
+    "name": "scipy",
+    "spec": ">=1.13,<1.16",
+    "raw": "scipy>=1.13,<1.16",
+    "marker": ""
+   },
+   {
+    "file": "requirements-regvelo.txt",
+    "name": "scvi-tools",
+    "spec": "==1.2.0",
+    "raw": "scvi-tools==1.2.0",
+    "marker": ""
+   },
+   {
+    "file": "requirements-regvelo.txt",
+    "name": "torch",
+    "spec": ">=2.5,<2.6",
+    "raw": "torch>=2.5,<2.6",
+    "marker": ""
+   },
+   {
+    "file": "requirements-regvelo.txt",
+    "name": "jax",
+    "spec": "==0.4.35",
+    "raw": "jax==0.4.35",
+    "marker": ""
+   },
+   {
+    "file": "requirements-regvelo.txt",
+    "name": "jaxlib",
+    "spec": "==0.4.35",
+    "raw": "jaxlib==0.4.35",
+    "marker": ""
+   },
+   {
+    "file": "requirements-regvelo.txt",
+    "name": "flax",
+    "spec": "==0.10.2",
+    "raw": "flax==0.10.2",
+    "marker": ""
+   },
+   {
+    "file": "requirements-regvelo.txt",
+    "name": "optax",
+    "spec": "==0.2.4",
+    "raw": "optax==0.2.4",
+    "marker": ""
+   },
+   {
+    "file": "requirements-regvelo.txt",
+    "name": "chex",
+    "spec": "==0.1.88",
+    "raw": "chex==0.1.88",
+    "marker": ""
+   },
+   {
+    "file": "requirements-regvelo.txt",
+    "name": "orbax-checkpoint",
+    "spec": "==0.10.2",
+    "raw": "orbax-checkpoint==0.10.2",
+    "marker": ""
+   },
+   {
+    "file": "requirements-velovi.txt",
+    "name": "scvi-tools",
+    "spec": "==1.2.0",
+    "raw": "scvi-tools==1.2.0",
+    "marker": ""
+   },
+   {
+    "file": "requirements-velovi.txt",
+    "name": "numpy",
+    "spec": "<2",
+    "raw": "numpy<2",
+    "marker": ""
+   },
+   {
+    "file": "requirements-velovi.txt",
+    "name": "anndata",
+    "spec": ">=0.10.8,<0.12",
+    "raw": "anndata>=0.10.8,<0.12",
+    "marker": ""
+   },
+   {
+    "file": "requirements-velovi.txt",
+    "name": "scanpy",
+    "spec": ">=1.10,<1.12",
+    "raw": "scanpy>=1.10,<1.12",
+    "marker": ""
+   },
+   {
+    "file": "requirements-velovi.txt",
+    "name": "scvelo",
+    "spec": ">=0.3.3,<0.4",
+    "raw": "scvelo>=0.3.3,<0.4",
+    "marker": ""
+   },
+   {
+    "file": "requirements-velovi.txt",
+    "name": "igraph",
+    "spec": ">=0.11,<0.12",
+    "raw": "igraph>=0.11,<0.12",
+    "marker": ""
+   }
+  ],
+  "requirement_check": {
+   "satisfied": [
+    {
+     "name": "streamlit",
+     "installed": "1.66.1",
+     "spec": ">=1.49,<2",
+     "file": "requirements.txt",
+     "marker": ""
+    },
+    {
+     "name": "plotly",
+     "installed": "6.9.0",
+     "spec": ">=6,<7",
+     "file": "requirements.txt",
+     "marker": ""
+    },
+    {
+     "name": "anndata",
+     "installed": "0.12.19",
+     "spec": ">=0.11,<0.13",
+     "file": "requirements.txt",
+     "marker": ""
+    },
+    {
+     "name": "scanpy",
+     "installed": "1.11.5",
+     "spec": ">=1.11,<1.12",
+     "file": "requirements.txt",
+     "marker": ""
+    },
+    {
+     "name": "scvelo",
+     "installed": "0.3.4",
+     "spec": ">=0.3.3,<0.4",
+     "file": "requirements.txt",
+     "marker": ""
+    },
+    {
+     "name": "numpy",
+     "installed": "2.2.6",
+     "spec": ">=1.26,<2.3",
+     "file": "requirements.txt",
+     "marker": ""
+    },
+    {
+     "name": "scipy",
+     "installed": "1.15.3",
+     "spec": ">=1.13,<1.16",
+     "file": "requirements.txt",
+     "marker": ""
+    },
+    {
+     "name": "pandas",
+     "installed": "2.3.3",
+     "spec": ">=2.2,<3",
+     "file": "requirements.txt",
+     "marker": ""
+    },
+    {
+     "name": "igraph",
+     "installed": "0.11.9",
+     "spec": ">=0.11,<0.12",
+     "file": "requirements.txt",
+     "marker": ""
+    },
+    {
+     "name": "pytest",
+     "installed": "9.1.1",
+     "spec": ">=8,<10",
+     "file": "requirements.txt",
+     "marker": ""
+    },
+    {
+     "name": "fastapi",
+     "installed": "0.162.0",
+     "spec": ">=0.115,<1",
+     "file": "requirements.txt",
+     "marker": ""
+    },
+    {
+     "name": "uvicorn",
+     "installed": "0.54.0",
+     "spec": ">=0.30,<1",
+     "file": "requirements.txt",
+     "marker": ""
+    },
+    {
+     "name": "python-multipart",
+     "installed": "0.0.32",
+     "spec": ">=0.0.9",
+     "file": "requirements.txt",
+     "marker": ""
+    },
+    {
+     "name": "markdown",
+     "installed": "3.11.2",
+     "spec": ">=3.5,<4",
+     "file": "requirements.txt",
+     "marker": ""
+    },
+    {
+     "name": "PySide6",
+     "installed": "6.12.0",
+     "spec": ">=6.8,<7",
+     "file": "requirements.txt",
+     "marker": "sys_platform == \"win32\""
+    },
+    {
+     "name": "cellrank",
+     "installed": "2.0.7",
+     "spec": "==2.0.7",
+     "file": "requirements-cellrank.txt",
+     "marker": ""
+    },
+    {
+     "name": "scanpy",
+     "installed": "1.11.5",
+     "spec": ">=1.10.3,<1.12",
+     "file": "requirements-regvelo.txt",
+     "marker": ""
+    },
+    {
+     "name": "scvelo",
+     "installed": "0.3.4",
+     "spec": ">=0.3.3,<0.4",
+     "file": "requirements-regvelo.txt",
+     "marker": ""
+    },
+    {
+     "name": "scipy",
+     "installed": "1.15.3",
+     "spec": ">=1.13,<1.16",
+     "file": "requirements-regvelo.txt",
+     "marker": ""
+    },
+    {
+     "name": "scanpy",
+     "installed": "1.11.5",
+     "spec": ">=1.10,<1.12",
+     "file": "requirements-velovi.txt",
+     "marker": ""
+    },
+    {
+     "name": "scvelo",
+     "installed": "0.3.4",
+     "spec": ">=0.3.3,<0.4",
+     "file": "requirements-velovi.txt",
+     "marker": ""
+    },
+    {
+     "name": "igraph",
+     "installed": "0.11.9",
+     "spec": ">=0.11,<0.12",
+     "file": "requirements-velovi.txt",
+     "marker": ""
+    }
+   ],
+   "missing": [
+    {
+     "name": "pywebview",
+     "spec": ">=6.0,<7",
+     "file": "requirements.txt",
+     "marker": ""
+    },
+    {
+     "name": "regvelo",
+     "spec": "==0.4.2",
+     "file": "requirements-regvelo.txt",
+     "marker": ""
+    },
+    {
+     "name": "scvi-tools",
+     "spec": "==1.2.0",
+     "file": "requirements-regvelo.txt",
+     "marker": ""
+    },
+    {
+     "name": "torch",
+     "spec": ">=2.5,<2.6",
+     "file": "requirements-regvelo.txt",
+     "marker": ""
+    },
+    {
+     "name": "jax",
+     "spec": "==0.4.35",
+     "file": "requirements-regvelo.txt",
+     "marker": ""
+    },
+    {
+     "name": "jaxlib",
+     "spec": "==0.4.35",
+     "file": "requirements-regvelo.txt",
+     "marker": ""
+    },
+    {
+     "name": "flax",
+     "spec": "==0.10.2",
+     "file": "requirements-regvelo.txt",
+     "marker": ""
+    },
+    {
+     "name": "optax",
+     "spec": "==0.2.4",
+     "file": "requirements-regvelo.txt",
+     "marker": ""
+    },
+    {
+     "name": "chex",
+     "spec": "==0.1.88",
+     "file": "requirements-regvelo.txt",
+     "marker": ""
+    },
+    {
+     "name": "orbax-checkpoint",
+     "spec": "==0.10.2",
+     "file": "requirements-regvelo.txt",
+     "marker": ""
+    },
+    {
+     "name": "scvi-tools",
+     "spec": "==1.2.0",
+     "file": "requirements-velovi.txt",
+     "marker": ""
+    }
+   ],
+   "version_mismatch": [
+    {
+     "name": "numpy",
+     "installed": "2.2.6",
+     "spec": ">=1.26,<2",
+     "file": "requirements-regvelo.txt",
+     "marker": ""
+    },
+    {
+     "name": "anndata",
+     "installed": "0.12.19",
+     "spec": ">=0.10.8,<0.12",
+     "file": "requirements-regvelo.txt",
+     "marker": ""
+    },
+    {
+     "name": "numpy",
+     "installed": "2.2.6",
+     "spec": "<2",
+     "file": "requirements-velovi.txt",
+     "marker": ""
+    },
+    {
+     "name": "anndata",
+     "installed": "0.12.19",
+     "spec": ">=0.10.8,<0.12",
+     "file": "requirements-velovi.txt",
+     "marker": ""
+    }
+   ],
+   "counts": {
+    "satisfied": 22,
+    "missing": 11,
+    "mismatch": 4
+   }
+  },
+  "lock_files": {
+   "environment-venv.lock.txt": {
+    "exists": true,
+    "lines": 112
+   },
+   "environment-venv-velovi.lock.txt": {
+    "exists": true,
+    "lines": 112
+   }
+  }
+ },
+ "node": {
+  "node_version": "v26.4.0",
+  "npm_version": "11.17.0",
+  "package_json_path": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\web\\package.json",
+  "scripts": {
+   "dev": "vite",
+   "build": "vite build",
+   "preview": "vite preview",
+   "test": "tsc -p tsconfig.test.json && node --test tests/net.test.mjs"
+  },
+  "declared": {
+   "@blueprintjs/core": "^6.21.0",
+   "@blueprintjs/icons": "^6.4.0",
+   "@blueprintjs/table": "^6.3.0",
+   "@types/react": "^18.3.12",
+   "@types/react-dom": "^18.3.1",
+   "@vitejs/plugin-react": "^4.3.4",
+   "dockview": "^8.6.1",
+   "dockview-react": "^8.6.1",
+   "dompurify": "^3.4.17",
+   "marked": "^15.0.12",
+   "react": "^18.3.1",
+   "react-dom": "^18.3.1",
+   "typescript": "^5.6.3",
+   "vite": "^6.0.7"
+  },
+  "installed_top_level": {
+   "@blueprintjs/core": "6.21.0",
+   "@blueprintjs/icons": "6.14.1",
+   "@blueprintjs/table": "6.3.0",
+   "@types/react": "18.3.31",
+   "@types/react-dom": "18.3.7",
+   "@vitejs/plugin-react": "4.7.0",
+   "dockview": "8.6.1",
+   "dockview-react": "8.6.1",
+   "dompurify": "3.4.17",
+   "marked": "15.0.12",
+   "react": "18.3.1",
+   "react-dom": "18.3.1",
+   "typescript": "5.9.3",
+   "vite": "6.4.5"
+  },
+  "installed_count": 14,
+  "consistency": {
+   "declared_but_missing": [],
+   "installed_not_declared": [],
+   "version_drift": [
+    {
+     "name": "@blueprintjs/icons",
+     "declared": "^6.4.0",
+     "installed": "6.14.1"
+    },
+    {
+     "name": "@types/react",
+     "declared": "^18.3.12",
+     "installed": "18.3.31"
+    },
+    {
+     "name": "@types/react-dom",
+     "declared": "^18.3.1",
+     "installed": "18.3.7"
+    },
+    {
+     "name": "@vitejs/plugin-react",
+     "declared": "^4.3.4",
+     "installed": "4.7.0"
+    },
+    {
+     "name": "typescript",
+     "declared": "^5.6.3",
+     "installed": "5.9.3"
+    },
+    {
+     "name": "vite",
+     "declared": "^6.0.7",
+     "installed": "6.4.5"
+    }
+   ]
+  },
+  "npm_error": null
+ },
+ "isolated_envs": {
+  "velovi": {
+   "required_by": "requirements-velovi.txt（scvi-tools 1.2 要求 numpy<2，与主环境 numpy 2.x 冲突，故必须独立环境）",
+   "expected_in_this_checkout": false,
+   "candidates": [
+    {
+     "path": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\.venv-velovi",
+     "python_exists": false,
+     "usable": false
+    },
+    {
+     "path": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow\\.venv-velovi",
+     "python_exists": true,
+     "usable": true,
+     "probe_ok": true,
+     "probe_stdout": [
+      "PY 3.11.15",
+      "SCVI 1.2.0",
+      "TORCH 2.5.1+cpu"
+     ],
+     "probe_error": null
+    },
+    {
+     "path": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-audit\\.venv-velovi",
+     "python_exists": false,
+     "usable": false
+    }
+   ],
+   "usable_anywhere": true,
+   "usable_path": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow\\.venv-velovi",
+   "note": "本工作副本没有 .venv-velovi；同级 CellFlow 里的 .venv-velovi 可导入 scvi/torch，但不会被本仓库使用。"
+  }
+ },
+ "repo": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix",
+ "head": "0cfed72028331e80b862639c5fc07d6c5dee9831",
+ "branch": "p3/batch1-data-acquisition"
+}

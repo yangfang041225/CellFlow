@@ -1,0 +1,3984 @@
+{
+ "generated_at": "2026-10-26T08:00:56+08:00",
+ "repo": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix",
+ "head": "0cfed72028331e80b862639c5fc07d6c5dee9831",
+ "head_short": "0cfed72",
+ "branch": "p3/batch1-data-acquisition",
+ "run_mode": "export",
+ "backend": {
+  "runs": [
+   {
+    "label": "before_httpx2_blocked",
+    "command": "python.exe -m unittest discover -s tests（等价的程序化 runner，见 tools/p3_baseline.py）",
+    "cwd": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_baseline\\head-export",
+    "exit_code": 0,
+    "wall_seconds": 585.5,
+    "result_file": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_baseline\\unittest_before_httpx2_blocked.json",
+    "collected": 283,
+    "counts": {
+     "passed": 269,
+     "failed": 2,
+     "errors": 9,
+     "skipped": 3,
+     "class_fixture_records": 1
+    },
+    "load_errors": 6,
+    "records": [
+     {
+      "id": "unittest.loader._FailedTest.tests.test_api_pagination",
+      "status": "error",
+      "detail": "File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\case.py\", line 579, in _callTestMethod\n    if method() is not None:\n       ^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 34, in testFailure\n    raise self._exception\nImportError: Failed to import test module: tests.test_api_pagination\nTraceback (most recent call last):\n  File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 419, in _find_test_path\n    module = self._get_module_from_name(name)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 362, in _get_module_from_name\n    __import__(name)\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp",
+      "seconds": 0.0
+     },
+     {
+      "id": "unittest.loader._FailedTest.tests.test_api_surface",
+      "status": "error",
+      "detail": "File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\case.py\", line 579, in _callTestMethod\n    if method() is not None:\n       ^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 34, in testFailure\n    raise self._exception\nImportError: Failed to import test module: tests.test_api_surface\nTraceback (most recent call last):\n  File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 419, in _find_test_path\n    module = self._get_module_from_name(name)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 362, in _get_module_from_name\n    __import__(name)\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_archive.ArchiveSafety.test_import_any_rejects_malicious_zip_without_side_effects",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.209
+     },
+     {
+      "id": "tests.test_archive.ArchiveSafety.test_limits_are_enforced",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.008
+     },
+     {
+      "id": "tests.test_archive.ArchiveSafety.test_normal_archive_extracts_inside_target",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.006
+     },
+     {
+      "id": "tests.test_archive.ArchiveSafety.test_tar_symlink_is_refused",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.009
+     },
+     {
+      "id": "tests.test_archive.ArchiveSafety.test_tar_traversal_is_refused",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.008
+     },
+     {
+      "id": "tests.test_archive.ArchiveSafety.test_zip_drive_and_unc_are_refused",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.007
+     },
+     {
+      "id": "tests.test_archive.ArchiveSafety.test_zip_parent_traversal_is_refused",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.005
+     },
+     {
+      "id": "tests.test_compare_contract.CompareContract.test_different_embedding_blocks_even_if_config_same",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_compare_contract.CompareContract.test_different_gene_space_is_not_metric_comparable",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_compare_contract.CompareContract.test_different_hvg_blocks_figure_comparison",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_compare_contract.CompareContract.test_identical_runs_can_share_coordinates",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_compare_contract.CompareContract.test_missing_figure_is_reported",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_compare_contract.CompareContract.test_use_umap_switch_blocks_coordinate_comparison",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_advisor_recommends_by_data_facts",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.031
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_all_sparse_values_checked",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.043
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_auto_group_satisfies_group_premise",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.1
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_blockers_are_human_readable",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.123
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_config_guard_rejects_unknown_and_bad_types",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.035
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_demo_is_reproducible_and_marked",
+      "status": "passed",
+      "detail": "",
+      "seconds": 1.462
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_device_and_velocity_model_config",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.031
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_device_resolution_reports_reason",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.041
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_dpt_requires_biological_root",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.106
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_duplicates_block_instead_of_rename",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.028
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_input_unchanged_and_failure_report_exists",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.442
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_inspect_describes_data",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.044
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_integer_appearance_does_not_prove_raw",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.038
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_isolated_env_helper",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.036
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_method_content_complete_and_consistent",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.034
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_missing_package_is_reported_as_none",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.041
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_missing_su_does_not_impute_velocity",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.093
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_normalized_layer_cannot_be_raw_counts",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.041
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_object_pickle_is_not_loaded",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.031
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_planned_models_are_not_executable",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.097
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_poor_splicing_signal_keeps_qc_available",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.101
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_registry_is_consistent",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.036
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_unreadable_input_still_writes_failure_report",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.275
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_velocity_model_registry_is_consistent",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.036
+     },
+     {
+      "id": "tests.test_data_contract.DataContract.test_csv_missing_values_and_duplicate_genes_are_recorded",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.005
+     },
+     {
+      "id": "tests.test_data_contract.DataContract.test_h5ad_axes_are_authoritative",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.04
+     },
+     {
+      "id": "tests.test_data_contract.DataContract.test_metadata_missing_kept_as_empty_not_string",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.008
+     },
+     {
+      "id": "tests.test_data_contract.DataContract.test_missing_group_is_rejected_not_turned_into_cluster",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.002
+     },
+     {
+      "id": "unittest.loader._FailedTest.tests.test_dataset_identity",
+      "status": "error",
+      "detail": "File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\case.py\", line 579, in _callTestMethod\n    if method() is not None:\n       ^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 34, in testFailure\n    raise self._exception\nImportError: Failed to import test module: tests.test_dataset_identity\nTraceback (most recent call last):\n  File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 419, in _find_test_path\n    module = self._get_module_from_name(name)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 362, in _get_module_from_name\n    __import__(name)\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\t",
+      "seconds": 0.002
+     },
+     {
+      "id": "tests.test_desktop.DesktopOwnership.test_only_owner_can_publish",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.002
+     },
+     {
+      "id": "tests.test_desktop.DesktopOwnership.test_second_process_cannot_acquire_live_instance",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.138
+     },
+     {
+      "id": "tests.test_desktop.DesktopOwnership.test_stale_metadata_does_not_block_launch",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.003
+     },
+     {
+      "id": "tests.test_desktop.InstallCheck.test_install_check_mode_reports_ready",
+      "status": "passed",
+      "detail": "",
+      "seconds": 7.25
+     },
+     {
+      "id": "tests.test_desktop.InstallCheck.test_window_default_on_large_screen",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.004
+     },
+     {
+      "id": "tests.test_desktop.InstallCheck.test_window_size_fits_small_screen",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_desktop.WindowsGuiLauncher.test_console_redirector_matches_distribution",
+      "status": "failed",
+      "detail": "File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\case.py\", line 579, in _callTestMethod\n    if method() is not None:\n       ^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_baseline\\head-export\\tests\\test_desktop.py\", line 73, in test_console_redirector_matches_distribution\n    self.assertEqual(actual.read_bytes(), official.read_bytes())\nAssertionError: b'MZx\\x00\\x01\\x00\\x00\\x00\\x04\\x00\\x00\\x00\\x00[132420 chars]\\x00' != b'MZ\\x90\\x00\\x03\\x00\\x00\\x00\\x04\\x00\\x00\\x00\\[790233 chars]\\x00'",
+      "seconds": 0.006
+     },
+     {
+      "id": "tests.test_desktop.WindowsGuiLauncher.test_console_redirector_preserves_no_window_and_environment",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.13
+     },
+     {
+      "id": "tests.test_desktop.WindowsGuiLauncher.test_console_shim_is_repaired_from_same_python_distribution",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.023
+     },
+     {
+      "id": "tests.test_desktop.WindowsGuiLauncher.test_installed_pythonw_is_gui_executable",
+      "status": "failed",
+      "detail": "File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\case.py\", line 579, in _callTestMethod\n    if method() is not None:\n       ^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_baseline\\head-export\\tests\\test_desktop.py\", line 77, in test_installed_pythonw_is_gui_executable\n    self.assertEqual(pe_subsystem(ROOT / '.venv/Scripts/pythonw.exe'), 2)\nAssertionError: 3 != 2",
+      "seconds": 0.002
+     },
+     {
+      "id": "tests.test_desktop.WindowsGuiLauncher.test_invalid_executable_rejected",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.002
+     },
+     {
+      "id": "tests.test_desktop.WindowsGuiLauncher.test_owned_api_stops_and_releases_port",
+      "status": "passed",
+      "detail": "",
+      "seconds": 4.663
+     },
+     {
+      "id": "tests.test_docs.Docs.test_docs_links_resolve",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.127
+     },
+     {
+      "id": "tests.test_docs.Docs.test_no_duplicate_top_level_definitions",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.214
+     },
+     {
+      "id": "tests.test_docs.Docs.test_terms_doc_matches_generated",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_download_hotfix.ConcurrentProgress.test_two_downloads_keep_separate_progress",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.053
+     },
+     {
+      "id": "tests.test_download_hotfix.PreparationFailure.test_preparation_failure_does_not_leave_queued_forever",
+      "status": "passed",
+      "detail": "",
+      "seconds": 1.004
+     },
+     {
+      "id": "tests.test_download_hotfix.PreparationFailure.test_unwritable_staging_marks_task_failed",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.039
+     },
+     {
+      "id": "tests.test_download_hotfix.ReconcileContract.test_list_endpoint_exposes_reconcile_fields",
+      "status": "skipped",
+      "detail": "缺少 fastapi 运行环境：The starlette.testclient module requires the httpx2 package to be installed.\nYou can install this with:\n    $ pip install httpx2\n",
+      "seconds": 0.004
+     },
+     {
+      "id": "tests.test_download_network.DownloadNetwork.test_url_download_cancel_cleans_partial",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.617
+     },
+     {
+      "id": "tests.test_download_network.DownloadNetwork.test_url_download_completes",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.53
+     },
+     {
+      "id": "tests.test_downloads.Downloads.test_api_starts_and_reports_download",
+      "status": "error",
+      "detail": "File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\.venv\\Lib\\site-packages\\fastapi\\testclient.py\", line 1, in <module>\n    from starlette.testclient import TestClient as TestClient  # noqa\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\.venv\\Lib\\site-packages\\starlette\\testclient.py\", line 34, in <module>\n    raise RuntimeError(\nRuntimeError: The starlette.testclient module requires the httpx2 package to be installed.\nYou can install this with:\n    $ pip install httpx2",
+      "seconds": 0.012
+     },
+     {
+      "id": "tests.test_downloads.Downloads.test_cancel_finished_task_is_rejected",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.038
+     },
+     {
+      "id": "tests.test_downloads.Downloads.test_cancel_stops_and_cleans_partial",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.081
+     },
+     {
+      "id": "tests.test_downloads.Downloads.test_failure_is_reported",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.039
+     },
+     {
+      "id": "tests.test_downloads.Downloads.test_progress_then_done_moves_file",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.103
+     },
+     {
+      "id": "tests.test_downloads_persistence.DownloadsPersistence.test_failure_keeps_old_file",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.062
+     },
+     {
+      "id": "tests.test_downloads_persistence.DownloadsPersistence.test_project_filter",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.054
+     },
+     {
+      "id": "tests.test_downloads_persistence.DownloadsPersistence.test_same_name_new_content_does_not_overwrite",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.058
+     },
+     {
+      "id": "tests.test_downloads_persistence.DownloadsPersistence.test_species_filter_sidecar_is_recorded",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.034
+     },
+     {
+      "id": "tests.test_downloads_persistence.DownloadsPersistence.test_state_persists_and_running_becomes_interrupted",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.033
+     },
+     {
+      "id": "tests.test_downloads_persistence.DownloadsPersistence.test_success_uses_content_versioned_name",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.031
+     },
+     {
+      "id": "tests.test_figures_semantics.ArrowAffineF12.test_affine_maps_points_and_basis_vectors_identically",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.ArrowAffineF12.test_basis_vectors_render_axis_aligned",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.ArrowAffineF12.test_equal_mode_keeps_45deg",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.ArrowAffineF12.test_report_figures_use_equal_aspect",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.ArrowAffineF12.test_stretch_45deg_screen_slope_matches_probe_5857",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.BundleF18.test_all_references_exist_before_export",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.014
+     },
+     {
+      "id": "tests.test_figures_semantics.BundleF18.test_bundle_entries_include_referenced_png_and_svg",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_figures_semantics.BundleF18.test_missing_stream_png_is_detected",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.024
+     },
+     {
+      "id": "tests.test_figures_semantics.BundleF18.test_zip_from_bundle_entries_opens_offline",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.022
+     },
+     {
+      "id": "tests.test_figures_semantics.CaptionSemanticsF13.test_fate_claim_uses_probability_field",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.CaptionSemanticsF13.test_group_claim_uses_group_labels",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.CaptionSemanticsF13.test_missing_declared_field_is_reported_not_faked",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.CaptionSemanticsF13.test_static_limits_of_each_figure",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.CaptionSemanticsF13.test_stream_png_figure_is_registered",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.CaptionSemanticsF13.test_titles_and_captions_come_from_same_spec",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.NarrativeF14.test_auto_without_velocity_does_not_claim_scvelo",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.NarrativeF14.test_deterministic_branch_is_labeled",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.NarrativeF14.test_dynamical_branch_mentions_latent_time",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.004
+     },
+     {
+      "id": "tests.test_figures_semantics.NarrativeF14.test_headline_does_not_overclaim_for_auto_without_velocity",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.NarrativeF14.test_inferred_numbers_are_not_listed_as_observations",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.NarrativeF14.test_old_evidence_note_still_lists_layers",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.NarrativeF14.test_velocity_mode_comes_from_real_call",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.002
+     },
+     {
+      "id": "tests.test_figures_semantics.PagaSemanticsF13.test_asymmetric_input_is_not_faked_symmetric",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.004
+     },
+     {
+      "id": "tests.test_figures_semantics.PagaSemanticsF13.test_fixed_scale_and_no_row_normalization",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.PagaSemanticsF13.test_symmetry_is_preserved",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "setUpClass (tests.test_figures_semantics.PdfGeometryF17)",
+      "status": "skipped",
+      "detail": "pypdf 不可用：No module named 'pypdf'",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.FileClassification.test_loom_and_h5ad_shapes",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.FileClassification.test_loom_gz_is_importable_and_only_filename_evidence",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.FileClassification.test_pdf_is_not_importable",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.FileClassification.test_plain_counts_table_has_no_splice_evidence",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.FileClassification.test_velocyto_in_name_is_not_verified",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.IndexParsing.test_parent_directory_is_ignored",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.IndexParsing.test_parses_real_ncbi_listing",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.RecordShape.test_record_has_contract_fields",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.SizeParsing.test_human_sizes",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.SizeParsing.test_unknown_size",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.Stub.test_dir_urls",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.Stub.test_sample_stub",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.Stub.test_series_stub",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.Stub.test_short_accession_rejected",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_selected_download.DownloadFilePart.test_truncated_existing_file_is_resumed_not_trusted",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.524
+     },
+     {
+      "id": "tests.test_geo_selected_download.SelectedDownload.test_bad_accession_is_rejected",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.518
+     },
+     {
+      "id": "tests.test_geo_selected_download.SelectedDownload.test_empty_selection_is_rejected",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.527
+     },
+     {
+      "id": "tests.test_geo_selected_download.SelectedDownload.test_meta_json_records_selection",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.524
+     },
+     {
+      "id": "tests.test_geo_selected_download.SelectedDownload.test_only_selected_file_is_downloaded",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.527
+     },
+     {
+      "id": "tests.test_geo_selected_download.SelectedDownload.test_output_name_reflects_selected_file",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.525
+     },
+     {
+      "id": "tests.test_geo_selected_download.SelectedDownload.test_unparseable_file_is_reported_not_faked",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.527
+     },
+     {
+      "id": "tests.test_geo_selected_download.SelectedDownload.test_workdir_is_cleaned_and_part_files_removed",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.533
+     },
+     {
+      "id": "tests.test_h5ad.H5adContract.test_sparse_h5ad_round_trip",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.068
+     },
+     {
+      "id": "tests.test_html_safety.NormalReportUnchanged.test_benign_ampersand_is_not_double_escaped",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.001
+     },
+     {
+      "id": "tests.test_html_safety.NormalReportUnchanged.test_error_report_keeps_fenced_block_and_is_inert",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.033
+     },
+     {
+      "id": "tests.test_html_safety.NormalReportUnchanged.test_html_keeps_figures_tables_and_captions",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.001
+     },
+     {
+      "id": "tests.test_html_safety.NormalReportUnchanged.test_markdown_structure_intact",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_html_safety.ReportIsInert.test_csp_meta_present_and_blocks_scripts",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_html_safety.ReportIsInert.test_final_html_has_no_executable_markup",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_html_safety.ReportIsInert.test_payload_text_is_visible_but_escaped",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_html_safety.SanitizerUnit.test_css_and_style_attack_payloads_removed",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_html_safety.SanitizerUnit.test_dangerous_tags_and_attributes_are_removed",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_html_safety.SanitizerUnit.test_report_markup_survives_and_sanitize_is_idempotent",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_html_safety.SanitizerUnit.test_url_scheme_filtering",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_importers.Importers.test_10x_barcode_count_mismatch_is_refused",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.02
+     },
+     {
+      "id": "tests.test_importers.Importers.test_10x_directory",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.021
+     },
+     {
+      "id": "tests.test_importers.Importers.test_10x_missing_barcodes_uses_placeholders_with_note",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.016
+     },
+     {
+      "id": "tests.test_importers.Importers.test_10x_missing_features_is_explained",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.014
+     },
+     {
+      "id": "tests.test_importers.Importers.test_10x_negative_values_are_refused",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.021
+     },
+     {
+      "id": "tests.test_importers.Importers.test_10x_non_integer_values_get_warning",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.028
+     },
+     {
+      "id": "tests.test_importers.Importers.test_csv_cells_by_genes",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.011
+     },
+     {
+      "id": "tests.test_importers.Importers.test_csv_genes_by_cells_is_transposed",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.004
+     },
+     {
+      "id": "tests.test_importers.Importers.test_csv_import_reports_memory_estimate",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.008
+     },
+     {
+      "id": "tests.test_importers.Importers.test_csv_with_metadata_columns",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_importers.Importers.test_data_load_dispatch",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_importers.Importers.test_h5ad_both_orientations",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.036
+     },
+     {
+      "id": "tests.test_importers.Importers.test_loom",
+      "status": "passed",
+      "detail": "",
+      "seconds": 2.129
+     },
+     {
+      "id": "tests.test_importers.Importers.test_memory_precheck_blocks_import",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.002
+     },
+     {
+      "id": "tests.test_importers.Importers.test_streaming_csv_flipped_orientation",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.018
+     },
+     {
+      "id": "tests.test_importers.Importers.test_streaming_csv_matches_plain_read",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.032
+     },
+     {
+      "id": "tests.test_importers.Importers.test_unsupported_suffix_is_explained",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.002
+     },
+     {
+      "id": "tests.test_importers.Importers.test_zip_containing_10x",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.041
+     },
+     {
+      "id": "tests.test_install_checks.CheckEnvironmentTests.test_check_does_not_create_or_modify_files",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.02
+     },
+     {
+      "id": "tests.test_install_checks.CheckEnvironmentTests.test_isolated_environment_uses_its_own_interpreter",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.014
+     },
+     {
+      "id": "tests.test_install_checks.CheckEnvironmentTests.test_missing_core_environment_is_not_ready",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.004
+     },
+     {
+      "id": "tests.test_install_checks.CheckEnvironmentTests.test_missing_package_is_not_ready",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.007
+     },
+     {
+      "id": "tests.test_install_checks.CheckEnvironmentTests.test_optional_environment_missing_does_not_block_core",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.011
+     },
+     {
+      "id": "tests.test_install_checks.CheckEnvironmentTests.test_present_but_broken_isolated_environment_is_not_ready",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.009
+     },
+     {
+      "id": "tests.test_install_checks.CheckEnvironmentTests.test_probe_failure_is_not_ready",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_install_checks.CheckEnvironmentTests.test_ready_manifest_contains_structured_fields",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_install_checks.CheckEnvironmentTests.test_version_mismatch_is_not_ready",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_install_checks.RealProbeTests.test_real_probe_roundtrip",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.218
+     },
+     {
+      "id": "tests.test_install_checks.VersionSatisfiesTests.test_local_version_suffix_is_ignored",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_install_checks.VersionSatisfiesTests.test_lower_and_upper_bounds",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_install_checks.VersionSatisfiesTests.test_missing_or_unparsable_version_fails_closed",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "unittest.loader._FailedTest.tests.test_jobs_meta",
+      "status": "error",
+      "detail": "File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\case.py\", line 579, in _callTestMethod\n    if method() is not None:\n       ^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 34, in testFailure\n    raise self._exception\nImportError: Failed to import test module: tests.test_jobs_meta\nTraceback (most recent call last):\n  File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 419, in _find_test_path\n    module = self._get_module_from_name(name)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 362, in _get_module_from_name\n    __import__(name)\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_b",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_memory.H5LayerEstimate.test_layers_increase_estimate",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.019
+     },
+     {
+      "id": "tests.test_memory.Memory.test_api_rejects_when_memory_check_fails",
+      "status": "error",
+      "detail": "File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\.venv\\Lib\\site-packages\\fastapi\\testclient.py\", line 1, in <module>\n    from starlette.testclient import TestClient as TestClient  # noqa\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\.venv\\Lib\\site-packages\\starlette\\testclient.py\", line 34, in <module>\n    raise RuntimeError(\nRuntimeError: The starlette.testclient module requires the httpx2 package to be installed.\nYou can install this with:\n    $ pip install httpx2",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_memory.Memory.test_estimate_demo",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_memory.Memory.test_estimate_sparse_h5ad_shape",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_memory.Memory.test_precheck_refuses_when_over_limit",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_memory.Memory.test_require_passes_with_enough_memory",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_memory.Memory.test_require_stops_when_memory_is_low",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_paths.Cleanup.test_cleanup_deletes_only_staging_children",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_paths.Cleanup.test_cleanup_dry_run_does_not_delete",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.015
+     },
+     {
+      "id": "tests.test_paths.Cleanup.test_cleanup_refuses_paths_outside_staging",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.004
+     },
+     {
+      "id": "tests.test_paths.Cleanup.test_fresh_staging_is_kept",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.005
+     },
+     {
+      "id": "tests.test_paths.CommitFile.test_commit_file_moves_and_refuses_overwrite",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.006
+     },
+     {
+      "id": "tests.test_paths.Layout.test_legacy_public_dir_is_preferred",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_paths.Layout.test_make_workdir_is_unique",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.011
+     },
+     {
+      "id": "tests.test_paths.Layout.test_make_workdir_lives_under_data_root",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_paths.Layout.test_new_install_uses_datasets_downloaded",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_paths.Layout.test_partial_path_suffix",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_paths.Layout.test_unknown_staging_kind_is_rejected",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_paths.RootResolution.test_default_is_legacy_data_dir",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_paths.RootResolution.test_env_override_wins",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_paths.RootResolution.test_set_data_root_records_choice",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.025
+     },
+     {
+      "id": "tests.test_paths.RootResolution.test_set_data_root_requires_writable_dir",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.002
+     },
+     {
+      "id": "tests.test_paths.RootResolution.test_settings_file_is_used_when_no_env",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.006
+     },
+     {
+      "id": "tests.test_paths.RootResolution.test_validate_root_reports_missing",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.001
+     },
+     {
+      "id": "tests.test_paths.Space.test_insufficient_space_raises_readable_error",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_paths.Space.test_required_bytes_has_margin_and_floor",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_paths.Space.test_small_request_passes",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.006
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_auto_accepts_preprocessed_x_with_raw_splice_layers",
+      "status": "passed",
+      "detail": "",
+      "seconds": 139.411
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_auto_pipeline_produces_one_combined_result",
+      "status": "passed",
+      "detail": "",
+      "seconds": 113.771
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_auto_without_root_uses_velocity_kernel",
+      "status": "passed",
+      "detail": "",
+      "seconds": 114.255
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_cellrank_fate_probabilities",
+      "status": "passed",
+      "detail": "",
+      "seconds": 3.529
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_leiden_end_to_end",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.61
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_missing_optional_environment_fails_cleanly",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.322
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_paga_with_auto_group",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.614
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_scvelo_deterministic_end_to_end",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.93
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_scvelo_dynamical_produces_latent_time",
+      "status": "passed",
+      "detail": "",
+      "seconds": 3.099
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_scvelo_stochastic_end_to_end",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.965
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_velovi_runs_in_isolated_environment",
+      "status": "skipped",
+      "detail": "veloVI 隔离环境（.venv-velovi）未就绪",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_progress.LiveStage.test_stage_is_written_during_run",
+      "status": "passed",
+      "detail": "",
+      "seconds": 2.121
+     },
+     {
+      "id": "tests.test_projects.Projects.test_api_project_lifecycle",
+      "status": "error",
+      "detail": "File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\.venv\\Lib\\site-packages\\fastapi\\testclient.py\", line 1, in <module>\n    from starlette.testclient import TestClient as TestClient  # noqa\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\.venv\\Lib\\site-packages\\starlette\\testclient.py\", line 34, in <module>\n    raise RuntimeError(\nRuntimeError: The starlette.testclient module requires the httpx2 package to be installed.\nYou can install this with:\n    $ pip install httpx2",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_projects.Projects.test_archive_switches_active_and_blocks_activation",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.009
+     },
+     {
+      "id": "tests.test_projects.Projects.test_datasets_are_scoped_per_project",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.06
+     },
+     {
+      "id": "tests.test_projects.Projects.test_default_project_and_switch",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_projects.Projects.test_delete_project_guards",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.02
+     },
+     {
+      "id": "tests.test_projects.Projects.test_delete_project_with_dataset_is_refused",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.021
+     },
+     {
+      "id": "tests.test_projects.Projects.test_delete_project_with_task_is_refused",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.011
+     },
+     {
+      "id": "tests.test_projects.Projects.test_queue_filters_by_project",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.041
+     },
+     {
+      "id": "tests.test_publicdata.PublicDataNetwork.test_geo_listing",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.802
+     },
+     {
+      "id": "tests.test_publicdata.PublicDataOffline.test_cellxgene_identifier_validation",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_publicdata.PublicDataOffline.test_download_file_over_http",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.035
+     },
+     {
+      "id": "tests.test_publicdata.PublicDataOffline.test_extract_and_convert_10x_archive",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.027
+     },
+     {
+      "id": "tests.test_publicdata.PublicDataOffline.test_geo_url_layout",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_publicdata.PublicDataOffline.test_species_guess_from_var_names",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_publicdata.PublicDataOffline.test_standardize_fills_required_obs",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.011
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_alive_worker_beyond_24h_is_not_recovered",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.027
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_cancel_does_not_kill_reused_pid",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.046
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_cancel_real_worker_stops_compute_and_resumes_queue",
+      "status": "passed",
+      "detail": "",
+      "seconds": 8.905
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_cancel_running_job_terminates_process_tree",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.47
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_cancel_terminates_orphan_compute_child",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.351
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_claim_respects_global_concurrency_limit",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.077
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_concurrent_same_project_submits_remain_unique",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.115
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_config_write_failure_leaves_terminal_state",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.066
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_dead_worker_is_recorded_as_interrupted",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.033
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_dedupe_key_includes_project_id",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.053
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_expired_lease_is_recovered_as_interrupted",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.024
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_failed_submit_leaves_no_job_or_snapshot",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.015
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_heartbeat_extends_lease_before_recovery",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.029
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_max_concurrent_is_configurable",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_missing_runtime_leaves_terminal_state",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.064
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_queue_never_stays_running_after_prepare_failure",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.079
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_reused_pid_is_treated_as_lost_not_killed",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.039
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_running_job_records_compute_process",
+      "status": "passed",
+      "detail": "",
+      "seconds": 4.227
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_same_project_reuse_does_not_copy_snapshot",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.039
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_second_supervisor_does_not_take_over",
+      "status": "passed",
+      "detail": "",
+      "seconds": 4.597
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_start_worker_is_idempotent",
+      "status": "passed",
+      "detail": "",
+      "seconds": 4.623
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_two_simultaneous_submits_peak_at_limit",
+      "status": "passed",
+      "detail": "",
+      "seconds": 7.647
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_unreadable_config_leaves_terminal_state",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.093
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_worker_startup_recovers_and_resumes_queued",
+      "status": "passed",
+      "detail": "",
+      "seconds": 5.843
+     },
+     {
+      "id": "tests.test_registry_health.IsolatedHealth.test_broken_interpreter_is_not_ready",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.015
+     },
+     {
+      "id": "tests.test_registry_health.IsolatedHealth.test_cache_file_is_written",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.155
+     },
+     {
+      "id": "tests.test_registry_health.IsolatedHealth.test_existing_module_is_ready",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.162
+     },
+     {
+      "id": "tests.test_registry_health.IsolatedHealth.test_missing_module_is_not_ready",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.141
+     },
+     {
+      "id": "tests.test_registry_safety.HashAndQuality.test_hash_kind_is_explicit",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.007
+     },
+     {
+      "id": "tests.test_registry_safety.HashAndQuality.test_quality_failure_blocks_completed",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.504
+     },
+     {
+      "id": "tests.test_registry_safety.PreviewStats.test_dense_stats",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.001
+     },
+     {
+      "id": "tests.test_registry_safety.PreviewStats.test_sparse_stats_use_total_elements",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.001
+     },
+     {
+      "id": "tests.test_registry_safety.RegistrySafety.test_removed_public_file_does_not_resurrect",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.05
+     },
+     {
+      "id": "tests.test_registry_safety.RegistrySafety.test_unregister_one_project_keeps_other_association",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.053
+     },
+     {
+      "id": "tests.test_reports.Arrows.test_density_controls_arrow_count",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_reports.Arrows.test_note_states_display_only",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_reports.Arrows.test_scale_changes_display_length_only",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_reports.Arrows.test_stream_png_writes_png",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.318
+     },
+     {
+      "id": "unittest.loader._FailedTest.tests.test_review_fixes",
+      "status": "error",
+      "detail": "File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\case.py\", line 579, in _callTestMethod\n    if method() is not None:\n       ^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 34, in testFailure\n    raise self._exception\nImportError: Failed to import test module: tests.test_review_fixes\nTraceback (most recent call last):\n  File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 419, in _find_test_path\n    module = self._get_module_from_name(name)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 362, in _get_module_from_name\n    __import__(name)\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p",
+      "seconds": 0.008
+     },
+     {
+      "id": "tests.test_science_contract.FateFallback.test_compute_fate_recovers_from_solver_error",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.001
+     },
+     {
+      "id": "tests.test_science_contract.FateFallback.test_direct_absorption_is_finite_and_normalized",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_science_contract.PreprocessingDeclaration.test_auto_and_standalone_share_velocity_protocol",
+      "status": "passed",
+      "detail": "",
+      "seconds": 121.857
+     },
+     {
+      "id": "tests.test_science_contract.PreprocessingDeclaration.test_declaration_reaches_every_run_record",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.812
+     },
+     {
+      "id": "tests.test_science_contract.PreprocessingDeclaration.test_executed_steps_match_input_scale",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.433
+     },
+     {
+      "id": "tests.test_science_contract.PreprocessingDeclaration.test_unconfirmed_counts_are_refused",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.319
+     },
+     {
+      "id": "tests.test_science_contract.PreprocessingDeclaration.test_unknown_scale_keeps_values_untouched",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.459
+     },
+     {
+      "id": "tests.test_science_contract.RegVeloContract.test_regvelo_audit_fields_are_not_hardcoded",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.003
+     },
+     {
+      "id": "tests.test_science_contract.RegVeloContract.test_regvelo_is_never_reported_ready",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.067
+     },
+     {
+      "id": "tests.test_science_contract.RegVeloContract.test_regvelo_output_protocol_is_declared_truthfully",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_science_contract.RegVeloContract.test_regvelo_refuses_to_fabricate_velocity",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.001
+     },
+     {
+      "id": "tests.test_science_contract.VeloviSmoke.test_velovi_trains_on_ms_mu",
+      "status": "skipped",
+      "detail": "veloVI 隔离环境（.venv-velovi）未就绪：真实 smoke 未运行，不代表通过",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_science_contract.VelovlInputContract.test_adapter_registers_ms_mu_not_raw_counts",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.004
+     },
+     {
+      "id": "tests.test_science_contract.VelovlInputContract.test_contract_requires_raw_splice_counts",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.002
+     },
+     {
+      "id": "tests.test_science_contract.VelovlInputContract.test_platform_choices_are_explicit",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "unittest.loader._FailedTest.tests.test_terms",
+      "status": "error",
+      "detail": "File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\case.py\", line 579, in _callTestMethod\n    if method() is not None:\n       ^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 34, in testFailure\n    raise self._exception\nImportError: Failed to import test module: tests.test_terms\nTraceback (most recent call last):\n  File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 419, in _find_test_path\n    module = self._get_module_from_name(name)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 362, in _get_module_from_name\n    __import__(name)\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_basel",
+      "seconds": 0.002
+     },
+     {
+      "id": "tests.test_ui_smoke.UiSmoke.test_data_page",
+      "status": "passed",
+      "detail": "",
+      "seconds": 2.233
+     },
+     {
+      "id": "tests.test_ui_smoke.UiSmoke.test_model_page",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.431
+     },
+     {
+      "id": "tests.test_ui_smoke.UiSmoke.test_overview_page",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.303
+     },
+     {
+      "id": "tests.test_ui_smoke.UiSmoke.test_reading_pages_does_not_queue_jobs",
+      "status": "passed",
+      "detail": "",
+      "seconds": 1.67
+     },
+     {
+      "id": "tests.test_ui_smoke.UiSmoke.test_reports_page",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.298
+     },
+     {
+      "id": "tests.test_ui_smoke.UiSmoke.test_results_page",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.309
+     },
+     {
+      "id": "tests.test_worker.Worker.test_worker_completes_qc_job",
+      "status": "passed",
+      "detail": "",
+      "seconds": 4.177
+     }
+    ],
+    "text_tail": "\\Lib\\unittest\\loader.py\", line 362, in _get_module_from_name\n    __import__(name)\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_baseline\\head-export\\tests\\test_review_fixes.py\", line 7, in <module>\n    from fastapi.testclient import TestClient\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\.venv\\Lib\\site-packages\\fastapi\\testclient.py\", line 1, in <module>\n    from starlette.testclient import TestClient as TestClient  # noqa\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\.venv\\Lib\\site-packages\\starlette\\testclient.py\", line 34, in <module>\n    raise RuntimeError(\nRuntimeError: The starlette.testclient module requires the httpx2 package to be installed.\nYou can install this with:\n    $ pip install httpx2\n\n\n\n======================================================================\nERROR: tests.test_terms (unittest.loader._FailedTest.tests.test_terms)\n----------------------------------------------------------------------\nImportError: Failed to import test module: tests.test_terms\nTraceback (most recent call last):\n  File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 419, in _find_test_path\n    module = self._get_module_from_name(name)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 362, in _get_module_from_name\n    __import__(name)\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_baseline\\head-export\\tests\\test_terms.py\", line 4, in <module>\n    from fastapi.testclient import TestClient\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\.venv\\Lib\\site-packages\\fastapi\\testclient.py\", line 1, in <module>\n    from starlette.testclient import TestClient as TestClient  # noqa\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\.venv\\Lib\\site-packages\\starlette\\testclient.py\", line 34, in <module>\n    raise RuntimeError(\nRuntimeError: The starlette.testclient module requires the httpx2 package to be installed.\nYou can install this with:\n    $ pip install httpx2\n\n\n\n======================================================================\nFAIL: test_console_redirector_matches_distribution (tests.test_desktop.WindowsGuiLauncher.test_console_redirector_matches_distribution)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_baseline\\head-export\\tests\\test_desktop.py\", line 73, in test_console_redirector_matches_distribution\n    self.assertEqual(actual.read_bytes(), official.read_bytes())\nAssertionError: b'MZx\\x00\\x01\\x00\\x00\\x00\\x04\\x00\\x00\\x00\\x00[132420 chars]\\x00' != b'MZ\\x90\\x00\\x03\\x00\\x00\\x00\\x04\\x00\\x00\\x00\\[790233 chars]\\x00'\n\n======================================================================\nFAIL: test_installed_pythonw_is_gui_executable (tests.test_desktop.WindowsGuiLauncher.test_installed_pythonw_is_gui_executable)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_baseline\\head-export\\tests\\test_desktop.py\", line 77, in test_installed_pythonw_is_gui_executable\n    self.assertEqual(pe_subsystem(ROOT / '.venv/Scripts/pythonw.exe'), 2)\nAssertionError: 3 != 2\n\n----------------------------------------------------------------------\nRan 283 tests in 581.034s\n\nFAILED (failures=2, errors=9, skipped=4)\n",
+    "arithmetic_check": {
+     "passed+failed+errors+skipped": 283,
+     "collected": 283,
+     "ok": true,
+     "note": ""
+    }
+   },
+   {
+    "label": "after_httpx2",
+    "command": "python.exe -m unittest discover -s tests（等价的程序化 runner，见 tools/p3_baseline.py）",
+    "cwd": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_baseline\\head-export",
+    "exit_code": 0,
+    "wall_seconds": 613.2,
+    "result_file": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_baseline\\unittest_after_httpx2.json",
+    "collected": 325,
+    "counts": {
+     "passed": 321,
+     "failed": 2,
+     "errors": 0,
+     "skipped": 2,
+     "class_fixture_records": 1
+    },
+    "load_errors": 0,
+    "records": [
+     {
+      "id": "tests.test_api_pagination.Pagination.test_full_zip_includes_small_model_directory",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.244
+     },
+     {
+      "id": "tests.test_api_pagination.Pagination.test_limit_is_capped",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.007
+     },
+     {
+      "id": "tests.test_api_pagination.Pagination.test_log_reads_tail_not_whole_file",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_api_pagination.Pagination.test_meta_counts_are_project_scoped_aggregate",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.105
+     },
+     {
+      "id": "tests.test_api_pagination.Pagination.test_run_detail_compacts_heavy_arrays",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.03
+     },
+     {
+      "id": "tests.test_api_pagination.Pagination.test_runs_are_paginated_with_total",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.041
+     },
+     {
+      "id": "tests.test_api_surface.ApiSurface.test_endpoint_functions_are_public",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_api_surface.ApiSurface.test_expected_routes_exist",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_api_surface.ApiSurface.test_no_duplicate_method_path",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_api_surface.ApiSurface.test_parameterless_gets_do_not_crash",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.342
+     },
+     {
+      "id": "tests.test_api_surface.ApiSurface.test_run_detail_endpoints_do_not_crash",
+      "status": "passed",
+      "detail": "",
+      "seconds": 2.889
+     },
+     {
+      "id": "tests.test_api_surface.ApiSurface.test_unhandled_exception_returns_json_and_logs",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.021
+     },
+     {
+      "id": "tests.test_api_surface.ApiSurface.test_upload_overflow_is_rejected_without_leftovers",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_archive.ArchiveSafety.test_import_any_rejects_malicious_zip_without_side_effects",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_archive.ArchiveSafety.test_limits_are_enforced",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_archive.ArchiveSafety.test_normal_archive_extracts_inside_target",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_archive.ArchiveSafety.test_tar_symlink_is_refused",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_archive.ArchiveSafety.test_tar_traversal_is_refused",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_archive.ArchiveSafety.test_zip_drive_and_unc_are_refused",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_archive.ArchiveSafety.test_zip_parent_traversal_is_refused",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.011
+     },
+     {
+      "id": "tests.test_compare_contract.CompareContract.test_different_embedding_blocks_even_if_config_same",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_compare_contract.CompareContract.test_different_gene_space_is_not_metric_comparable",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_compare_contract.CompareContract.test_different_hvg_blocks_figure_comparison",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_compare_contract.CompareContract.test_identical_runs_can_share_coordinates",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_compare_contract.CompareContract.test_missing_figure_is_reported",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_compare_contract.CompareContract.test_use_umap_switch_blocks_coordinate_comparison",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_advisor_recommends_by_data_facts",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.038
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_all_sparse_values_checked",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.04
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_auto_group_satisfies_group_premise",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.091
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_blockers_are_human_readable",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.122
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_config_guard_rejects_unknown_and_bad_types",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.041
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_demo_is_reproducible_and_marked",
+      "status": "passed",
+      "detail": "",
+      "seconds": 1.43
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_device_and_velocity_model_config",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.034
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_device_resolution_reports_reason",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.036
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_dpt_requires_biological_root",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.114
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_duplicates_block_instead_of_rename",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.038
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_input_unchanged_and_failure_report_exists",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.377
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_inspect_describes_data",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.035
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_integer_appearance_does_not_prove_raw",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.045
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_isolated_env_helper",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.037
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_method_content_complete_and_consistent",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.026
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_missing_package_is_reported_as_none",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.045
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_missing_su_does_not_impute_velocity",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.092
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_normalized_layer_cannot_be_raw_counts",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.043
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_object_pickle_is_not_loaded",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.032
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_planned_models_are_not_executable",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.094
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_poor_splicing_signal_keeps_qc_available",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.105
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_registry_is_consistent",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.037
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_unreadable_input_still_writes_failure_report",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.279
+     },
+     {
+      "id": "tests.test_contracts.Contracts.test_velocity_model_registry_is_consistent",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.035
+     },
+     {
+      "id": "tests.test_data_contract.DataContract.test_csv_missing_values_and_duplicate_genes_are_recorded",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.012
+     },
+     {
+      "id": "tests.test_data_contract.DataContract.test_h5ad_axes_are_authoritative",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.039
+     },
+     {
+      "id": "tests.test_data_contract.DataContract.test_metadata_missing_kept_as_empty_not_string",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_data_contract.DataContract.test_missing_group_is_rejected_not_turned_into_cluster",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.003
+     },
+     {
+      "id": "tests.test_dataset_identity.DatasetIdentity.test_compound_gzip_suffix_is_accepted",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.036
+     },
+     {
+      "id": "tests.test_dataset_identity.DatasetIdentity.test_unsupported_suffix_is_rejected",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_dataset_identity.DatasetIdentity.test_upload_keeps_original_filename",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.118
+     },
+     {
+      "id": "tests.test_desktop.DesktopOwnership.test_only_owner_can_publish",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_desktop.DesktopOwnership.test_second_process_cannot_acquire_live_instance",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.131
+     },
+     {
+      "id": "tests.test_desktop.DesktopOwnership.test_stale_metadata_does_not_block_launch",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.011
+     },
+     {
+      "id": "tests.test_desktop.InstallCheck.test_install_check_mode_reports_ready",
+      "status": "passed",
+      "detail": "",
+      "seconds": 6.701
+     },
+     {
+      "id": "tests.test_desktop.InstallCheck.test_window_default_on_large_screen",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_desktop.InstallCheck.test_window_size_fits_small_screen",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_desktop.WindowsGuiLauncher.test_console_redirector_matches_distribution",
+      "status": "failed",
+      "detail": "File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\case.py\", line 579, in _callTestMethod\n    if method() is not None:\n       ^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_baseline\\head-export\\tests\\test_desktop.py\", line 73, in test_console_redirector_matches_distribution\n    self.assertEqual(actual.read_bytes(), official.read_bytes())\nAssertionError: b'MZx\\x00\\x01\\x00\\x00\\x00\\x04\\x00\\x00\\x00\\x00[132420 chars]\\x00' != b'MZ\\x90\\x00\\x03\\x00\\x00\\x00\\x04\\x00\\x00\\x00\\[790233 chars]\\x00'",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_desktop.WindowsGuiLauncher.test_console_redirector_preserves_no_window_and_environment",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.124
+     },
+     {
+      "id": "tests.test_desktop.WindowsGuiLauncher.test_console_shim_is_repaired_from_same_python_distribution",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.02
+     },
+     {
+      "id": "tests.test_desktop.WindowsGuiLauncher.test_installed_pythonw_is_gui_executable",
+      "status": "failed",
+      "detail": "File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\case.py\", line 579, in _callTestMethod\n    if method() is not None:\n       ^^^^^^^^\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_baseline\\head-export\\tests\\test_desktop.py\", line 77, in test_installed_pythonw_is_gui_executable\n    self.assertEqual(pe_subsystem(ROOT / '.venv/Scripts/pythonw.exe'), 2)\nAssertionError: 3 != 2",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_desktop.WindowsGuiLauncher.test_invalid_executable_rejected",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_desktop.WindowsGuiLauncher.test_owned_api_stops_and_releases_port",
+      "status": "passed",
+      "detail": "",
+      "seconds": 4.62
+     },
+     {
+      "id": "tests.test_docs.Docs.test_docs_links_resolve",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.125
+     },
+     {
+      "id": "tests.test_docs.Docs.test_no_duplicate_top_level_definitions",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.215
+     },
+     {
+      "id": "tests.test_docs.Docs.test_terms_doc_matches_generated",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.002
+     },
+     {
+      "id": "tests.test_download_hotfix.ConcurrentProgress.test_two_downloads_keep_separate_progress",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.049
+     },
+     {
+      "id": "tests.test_download_hotfix.PreparationFailure.test_preparation_failure_does_not_leave_queued_forever",
+      "status": "passed",
+      "detail": "",
+      "seconds": 1.007
+     },
+     {
+      "id": "tests.test_download_hotfix.PreparationFailure.test_unwritable_staging_marks_task_failed",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.035
+     },
+     {
+      "id": "tests.test_download_hotfix.ReconcileContract.test_list_endpoint_exposes_reconcile_fields",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.062
+     },
+     {
+      "id": "tests.test_download_network.DownloadNetwork.test_url_download_cancel_cleans_partial",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.597
+     },
+     {
+      "id": "tests.test_download_network.DownloadNetwork.test_url_download_completes",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.529
+     },
+     {
+      "id": "tests.test_downloads.Downloads.test_api_starts_and_reports_download",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.065
+     },
+     {
+      "id": "tests.test_downloads.Downloads.test_cancel_finished_task_is_rejected",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.044
+     },
+     {
+      "id": "tests.test_downloads.Downloads.test_cancel_stops_and_cleans_partial",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.072
+     },
+     {
+      "id": "tests.test_downloads.Downloads.test_failure_is_reported",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.042
+     },
+     {
+      "id": "tests.test_downloads.Downloads.test_progress_then_done_moves_file",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.106
+     },
+     {
+      "id": "tests.test_downloads_persistence.DownloadsPersistence.test_failure_keeps_old_file",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.059
+     },
+     {
+      "id": "tests.test_downloads_persistence.DownloadsPersistence.test_project_filter",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.06
+     },
+     {
+      "id": "tests.test_downloads_persistence.DownloadsPersistence.test_same_name_new_content_does_not_overwrite",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.058
+     },
+     {
+      "id": "tests.test_downloads_persistence.DownloadsPersistence.test_species_filter_sidecar_is_recorded",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.031
+     },
+     {
+      "id": "tests.test_downloads_persistence.DownloadsPersistence.test_state_persists_and_running_becomes_interrupted",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.031
+     },
+     {
+      "id": "tests.test_downloads_persistence.DownloadsPersistence.test_success_uses_content_versioned_name",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.032
+     },
+     {
+      "id": "tests.test_figures_semantics.ArrowAffineF12.test_affine_maps_points_and_basis_vectors_identically",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.ArrowAffineF12.test_basis_vectors_render_axis_aligned",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.ArrowAffineF12.test_equal_mode_keeps_45deg",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.ArrowAffineF12.test_report_figures_use_equal_aspect",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.ArrowAffineF12.test_stretch_45deg_screen_slope_matches_probe_5857",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.BundleF18.test_all_references_exist_before_export",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.009
+     },
+     {
+      "id": "tests.test_figures_semantics.BundleF18.test_bundle_entries_include_referenced_png_and_svg",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.021
+     },
+     {
+      "id": "tests.test_figures_semantics.BundleF18.test_missing_stream_png_is_detected",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_figures_semantics.BundleF18.test_zip_from_bundle_entries_opens_offline",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.02
+     },
+     {
+      "id": "tests.test_figures_semantics.CaptionSemanticsF13.test_fate_claim_uses_probability_field",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.CaptionSemanticsF13.test_group_claim_uses_group_labels",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.CaptionSemanticsF13.test_missing_declared_field_is_reported_not_faked",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.CaptionSemanticsF13.test_static_limits_of_each_figure",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.CaptionSemanticsF13.test_stream_png_figure_is_registered",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.CaptionSemanticsF13.test_titles_and_captions_come_from_same_spec",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.NarrativeF14.test_auto_without_velocity_does_not_claim_scvelo",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.NarrativeF14.test_deterministic_branch_is_labeled",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.NarrativeF14.test_dynamical_branch_mentions_latent_time",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.NarrativeF14.test_headline_does_not_overclaim_for_auto_without_velocity",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.NarrativeF14.test_inferred_numbers_are_not_listed_as_observations",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.NarrativeF14.test_old_evidence_note_still_lists_layers",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.NarrativeF14.test_velocity_mode_comes_from_real_call",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.011
+     },
+     {
+      "id": "tests.test_figures_semantics.PagaSemanticsF13.test_asymmetric_input_is_not_faked_symmetric",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.PagaSemanticsF13.test_fixed_scale_and_no_row_normalization",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_figures_semantics.PagaSemanticsF13.test_symmetry_is_preserved",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "setUpClass (tests.test_figures_semantics.PdfGeometryF17)",
+      "status": "skipped",
+      "detail": "pypdf 不可用：No module named 'pypdf'",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.FileClassification.test_loom_and_h5ad_shapes",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.FileClassification.test_loom_gz_is_importable_and_only_filename_evidence",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.FileClassification.test_pdf_is_not_importable",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.FileClassification.test_plain_counts_table_has_no_splice_evidence",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.FileClassification.test_velocyto_in_name_is_not_verified",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.IndexParsing.test_parent_directory_is_ignored",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.IndexParsing.test_parses_real_ncbi_listing",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.RecordShape.test_record_has_contract_fields",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.SizeParsing.test_human_sizes",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.SizeParsing.test_unknown_size",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.Stub.test_dir_urls",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.Stub.test_sample_stub",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.Stub.test_series_stub",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_manifest.Stub.test_short_accession_rejected",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_geo_selected_download.DownloadFilePart.test_truncated_existing_file_is_resumed_not_trusted",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.527
+     },
+     {
+      "id": "tests.test_geo_selected_download.SelectedDownload.test_bad_accession_is_rejected",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.527
+     },
+     {
+      "id": "tests.test_geo_selected_download.SelectedDownload.test_empty_selection_is_rejected",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.522
+     },
+     {
+      "id": "tests.test_geo_selected_download.SelectedDownload.test_meta_json_records_selection",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.537
+     },
+     {
+      "id": "tests.test_geo_selected_download.SelectedDownload.test_only_selected_file_is_downloaded",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.536
+     },
+     {
+      "id": "tests.test_geo_selected_download.SelectedDownload.test_output_name_reflects_selected_file",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.523
+     },
+     {
+      "id": "tests.test_geo_selected_download.SelectedDownload.test_unparseable_file_is_reported_not_faked",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.535
+     },
+     {
+      "id": "tests.test_geo_selected_download.SelectedDownload.test_workdir_is_cleaned_and_part_files_removed",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.528
+     },
+     {
+      "id": "tests.test_h5ad.H5adContract.test_sparse_h5ad_round_trip",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.072
+     },
+     {
+      "id": "tests.test_html_safety.NormalReportUnchanged.test_benign_ampersand_is_not_double_escaped",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.002
+     },
+     {
+      "id": "tests.test_html_safety.NormalReportUnchanged.test_error_report_keeps_fenced_block_and_is_inert",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.034
+     },
+     {
+      "id": "tests.test_html_safety.NormalReportUnchanged.test_html_keeps_figures_tables_and_captions",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.002
+     },
+     {
+      "id": "tests.test_html_safety.NormalReportUnchanged.test_markdown_structure_intact",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_html_safety.ReportIsInert.test_csp_meta_present_and_blocks_scripts",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_html_safety.ReportIsInert.test_final_html_has_no_executable_markup",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.004
+     },
+     {
+      "id": "tests.test_html_safety.ReportIsInert.test_payload_text_is_visible_but_escaped",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.002
+     },
+     {
+      "id": "tests.test_html_safety.SanitizerUnit.test_css_and_style_attack_payloads_removed",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_html_safety.SanitizerUnit.test_dangerous_tags_and_attributes_are_removed",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_html_safety.SanitizerUnit.test_report_markup_survives_and_sanitize_is_idempotent",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_html_safety.SanitizerUnit.test_url_scheme_filtering",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_importers.Importers.test_10x_barcode_count_mismatch_is_refused",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.02
+     },
+     {
+      "id": "tests.test_importers.Importers.test_10x_directory",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_importers.Importers.test_10x_missing_barcodes_uses_placeholders_with_note",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.02
+     },
+     {
+      "id": "tests.test_importers.Importers.test_10x_missing_features_is_explained",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.02
+     },
+     {
+      "id": "tests.test_importers.Importers.test_10x_negative_values_are_refused",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.022
+     },
+     {
+      "id": "tests.test_importers.Importers.test_10x_non_integer_values_get_warning",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.023
+     },
+     {
+      "id": "tests.test_importers.Importers.test_csv_cells_by_genes",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.008
+     },
+     {
+      "id": "tests.test_importers.Importers.test_csv_genes_by_cells_is_transposed",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.008
+     },
+     {
+      "id": "tests.test_importers.Importers.test_csv_import_reports_memory_estimate",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.008
+     },
+     {
+      "id": "tests.test_importers.Importers.test_csv_with_metadata_columns",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.009
+     },
+     {
+      "id": "tests.test_importers.Importers.test_data_load_dispatch",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.007
+     },
+     {
+      "id": "tests.test_importers.Importers.test_h5ad_both_orientations",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.027
+     },
+     {
+      "id": "tests.test_importers.Importers.test_loom",
+      "status": "passed",
+      "detail": "",
+      "seconds": 2.032
+     },
+     {
+      "id": "tests.test_importers.Importers.test_memory_precheck_blocks_import",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.004
+     },
+     {
+      "id": "tests.test_importers.Importers.test_streaming_csv_flipped_orientation",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.017
+     },
+     {
+      "id": "tests.test_importers.Importers.test_streaming_csv_matches_plain_read",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.031
+     },
+     {
+      "id": "tests.test_importers.Importers.test_unsupported_suffix_is_explained",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.002
+     },
+     {
+      "id": "tests.test_importers.Importers.test_zip_containing_10x",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.041
+     },
+     {
+      "id": "tests.test_install_checks.CheckEnvironmentTests.test_check_does_not_create_or_modify_files",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.02
+     },
+     {
+      "id": "tests.test_install_checks.CheckEnvironmentTests.test_isolated_environment_uses_its_own_interpreter",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.014
+     },
+     {
+      "id": "tests.test_install_checks.CheckEnvironmentTests.test_missing_core_environment_is_not_ready",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.007
+     },
+     {
+      "id": "tests.test_install_checks.CheckEnvironmentTests.test_missing_package_is_not_ready",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.009
+     },
+     {
+      "id": "tests.test_install_checks.CheckEnvironmentTests.test_optional_environment_missing_does_not_block_core",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_install_checks.CheckEnvironmentTests.test_present_but_broken_isolated_environment_is_not_ready",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_install_checks.CheckEnvironmentTests.test_probe_failure_is_not_ready",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.012
+     },
+     {
+      "id": "tests.test_install_checks.CheckEnvironmentTests.test_ready_manifest_contains_structured_fields",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.008
+     },
+     {
+      "id": "tests.test_install_checks.CheckEnvironmentTests.test_version_mismatch_is_not_ready",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.015
+     },
+     {
+      "id": "tests.test_install_checks.RealProbeTests.test_real_probe_roundtrip",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.217
+     },
+     {
+      "id": "tests.test_install_checks.VersionSatisfiesTests.test_local_version_suffix_is_ignored",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_install_checks.VersionSatisfiesTests.test_lower_and_upper_bounds",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_install_checks.VersionSatisfiesTests.test_missing_or_unparsable_version_fails_closed",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_api_cancel_unknown_job_returns_400",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.015
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_cancel_queued_job",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.051
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_compare_configs_between_runs",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.051
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_dataset_detail_reports_hash_and_shape",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.144
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_delete_dataset_unknown_returns_404",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_delete_referenced_dataset_is_refused",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.113
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_display_name_is_human_readable",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.029
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_env_endpoint_reports_environment",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.071
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_figure_captions_explain_limits",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_filters_by_state_and_query",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.051
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_health_reports_queue_and_device",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.02
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_interpretation_layers_are_separated",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_pdf_export_when_completed_run_exists",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.031
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_quality_flags_inconsistent_fate_and_embedding",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.022
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_quality_report_flags_shape_mismatch",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.009
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_quality_report_ok_for_consistent_outputs",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.013
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_rename_and_delete_job_record",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.059
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_run_detail_exposes_stage",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.028
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_unregister_dataset_keeps_file",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.02
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_zip_contains_manifest_and_pdfs",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.068
+     },
+     {
+      "id": "tests.test_jobs_meta.JobsMeta.test_zip_declares_package_kind_and_hashes",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.179
+     },
+     {
+      "id": "tests.test_memory.H5LayerEstimate.test_layers_increase_estimate",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.027
+     },
+     {
+      "id": "tests.test_memory.Memory.test_api_rejects_when_memory_check_fails",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.109
+     },
+     {
+      "id": "tests.test_memory.Memory.test_estimate_demo",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_memory.Memory.test_estimate_sparse_h5ad_shape",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.014
+     },
+     {
+      "id": "tests.test_memory.Memory.test_precheck_refuses_when_over_limit",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_memory.Memory.test_require_passes_with_enough_memory",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_memory.Memory.test_require_stops_when_memory_is_low",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_paths.Cleanup.test_cleanup_deletes_only_staging_children",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.008
+     },
+     {
+      "id": "tests.test_paths.Cleanup.test_cleanup_dry_run_does_not_delete",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.009
+     },
+     {
+      "id": "tests.test_paths.Cleanup.test_cleanup_refuses_paths_outside_staging",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.005
+     },
+     {
+      "id": "tests.test_paths.Cleanup.test_fresh_staging_is_kept",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.004
+     },
+     {
+      "id": "tests.test_paths.CommitFile.test_commit_file_moves_and_refuses_overwrite",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.008
+     },
+     {
+      "id": "tests.test_paths.Layout.test_legacy_public_dir_is_preferred",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.002
+     },
+     {
+      "id": "tests.test_paths.Layout.test_make_workdir_is_unique",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.006
+     },
+     {
+      "id": "tests.test_paths.Layout.test_make_workdir_lives_under_data_root",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.004
+     },
+     {
+      "id": "tests.test_paths.Layout.test_new_install_uses_datasets_downloaded",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.004
+     },
+     {
+      "id": "tests.test_paths.Layout.test_partial_path_suffix",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_paths.Layout.test_unknown_staging_kind_is_rejected",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_paths.RootResolution.test_default_is_legacy_data_dir",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_paths.RootResolution.test_env_override_wins",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_paths.RootResolution.test_set_data_root_records_choice",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.022
+     },
+     {
+      "id": "tests.test_paths.RootResolution.test_set_data_root_requires_writable_dir",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.003
+     },
+     {
+      "id": "tests.test_paths.RootResolution.test_settings_file_is_used_when_no_env",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.006
+     },
+     {
+      "id": "tests.test_paths.RootResolution.test_validate_root_reports_missing",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_paths.Space.test_insufficient_space_raises_readable_error",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.004
+     },
+     {
+      "id": "tests.test_paths.Space.test_required_bytes_has_margin_and_floor",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_paths.Space.test_small_request_passes",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.004
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_auto_accepts_preprocessed_x_with_raw_splice_layers",
+      "status": "passed",
+      "detail": "",
+      "seconds": 138.419
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_auto_pipeline_produces_one_combined_result",
+      "status": "passed",
+      "detail": "",
+      "seconds": 120.026
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_auto_without_root_uses_velocity_kernel",
+      "status": "passed",
+      "detail": "",
+      "seconds": 125.388
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_cellrank_fate_probabilities",
+      "status": "passed",
+      "detail": "",
+      "seconds": 4.955
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_leiden_end_to_end",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.645
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_missing_optional_environment_fails_cleanly",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.335
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_paga_with_auto_group",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.648
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_scvelo_deterministic_end_to_end",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.996
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_scvelo_dynamical_produces_latent_time",
+      "status": "passed",
+      "detail": "",
+      "seconds": 3.341
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_scvelo_stochastic_end_to_end",
+      "status": "passed",
+      "detail": "",
+      "seconds": 1.018
+     },
+     {
+      "id": "tests.test_pipeline.Pipeline.test_velovi_runs_in_isolated_environment",
+      "status": "skipped",
+      "detail": "veloVI 隔离环境（.venv-velovi）未就绪",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_progress.LiveStage.test_stage_is_written_during_run",
+      "status": "passed",
+      "detail": "",
+      "seconds": 2.192
+     },
+     {
+      "id": "tests.test_projects.Projects.test_api_project_lifecycle",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.15
+     },
+     {
+      "id": "tests.test_projects.Projects.test_archive_switches_active_and_blocks_activation",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.017
+     },
+     {
+      "id": "tests.test_projects.Projects.test_datasets_are_scoped_per_project",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.094
+     },
+     {
+      "id": "tests.test_projects.Projects.test_default_project_and_switch",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.006
+     },
+     {
+      "id": "tests.test_projects.Projects.test_delete_project_guards",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.017
+     },
+     {
+      "id": "tests.test_projects.Projects.test_delete_project_with_dataset_is_refused",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.028
+     },
+     {
+      "id": "tests.test_projects.Projects.test_delete_project_with_task_is_refused",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.006
+     },
+     {
+      "id": "tests.test_projects.Projects.test_queue_filters_by_project",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.047
+     },
+     {
+      "id": "tests.test_publicdata.PublicDataNetwork.test_geo_listing",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.826
+     },
+     {
+      "id": "tests.test_publicdata.PublicDataOffline.test_cellxgene_identifier_validation",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_publicdata.PublicDataOffline.test_download_file_over_http",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.064
+     },
+     {
+      "id": "tests.test_publicdata.PublicDataOffline.test_extract_and_convert_10x_archive",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.029
+     },
+     {
+      "id": "tests.test_publicdata.PublicDataOffline.test_geo_url_layout",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_publicdata.PublicDataOffline.test_species_guess_from_var_names",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_publicdata.PublicDataOffline.test_standardize_fills_required_obs",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.017
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_alive_worker_beyond_24h_is_not_recovered",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.033
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_cancel_does_not_kill_reused_pid",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.04
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_cancel_real_worker_stops_compute_and_resumes_queue",
+      "status": "passed",
+      "detail": "",
+      "seconds": 9.046
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_cancel_running_job_terminates_process_tree",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.489
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_cancel_terminates_orphan_compute_child",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.359
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_claim_respects_global_concurrency_limit",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.066
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_concurrent_same_project_submits_remain_unique",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.067
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_config_write_failure_leaves_terminal_state",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.076
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_dead_worker_is_recorded_as_interrupted",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.034
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_dedupe_key_includes_project_id",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.057
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_expired_lease_is_recovered_as_interrupted",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.026
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_failed_submit_leaves_no_job_or_snapshot",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.017
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_heartbeat_extends_lease_before_recovery",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.033
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_max_concurrent_is_configurable",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_missing_runtime_leaves_terminal_state",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.074
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_queue_never_stays_running_after_prepare_failure",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.077
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_reused_pid_is_treated_as_lost_not_killed",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.042
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_running_job_records_compute_process",
+      "status": "passed",
+      "detail": "",
+      "seconds": 4.229
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_same_project_reuse_does_not_copy_snapshot",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.037
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_second_supervisor_does_not_take_over",
+      "status": "passed",
+      "detail": "",
+      "seconds": 4.385
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_start_worker_is_idempotent",
+      "status": "passed",
+      "detail": "",
+      "seconds": 4.396
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_two_simultaneous_submits_peak_at_limit",
+      "status": "passed",
+      "detail": "",
+      "seconds": 7.575
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_unreadable_config_leaves_terminal_state",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.086
+     },
+     {
+      "id": "tests.test_queue_lifecycle.QueueLifecycleTest.test_worker_startup_recovers_and_resumes_queued",
+      "status": "passed",
+      "detail": "",
+      "seconds": 5.568
+     },
+     {
+      "id": "tests.test_registry_health.IsolatedHealth.test_broken_interpreter_is_not_ready",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.012
+     },
+     {
+      "id": "tests.test_registry_health.IsolatedHealth.test_cache_file_is_written",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.133
+     },
+     {
+      "id": "tests.test_registry_health.IsolatedHealth.test_existing_module_is_ready",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.122
+     },
+     {
+      "id": "tests.test_registry_health.IsolatedHealth.test_missing_module_is_not_ready",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.119
+     },
+     {
+      "id": "tests.test_registry_safety.HashAndQuality.test_hash_kind_is_explicit",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_registry_safety.HashAndQuality.test_quality_failure_blocks_completed",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.417
+     },
+     {
+      "id": "tests.test_registry_safety.PreviewStats.test_dense_stats",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_registry_safety.PreviewStats.test_sparse_stats_use_total_elements",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_registry_safety.RegistrySafety.test_removed_public_file_does_not_resurrect",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.066
+     },
+     {
+      "id": "tests.test_registry_safety.RegistrySafety.test_unregister_one_project_keeps_other_association",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.083
+     },
+     {
+      "id": "tests.test_reports.Arrows.test_density_controls_arrow_count",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.007
+     },
+     {
+      "id": "tests.test_reports.Arrows.test_note_states_display_only",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.003
+     },
+     {
+      "id": "tests.test_reports.Arrows.test_scale_changes_display_length_only",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.002
+     },
+     {
+      "id": "tests.test_reports.Arrows.test_stream_png_writes_png",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.282
+     },
+     {
+      "id": "tests.test_review_fixes.ReviewFixes.test_auto_velovi_is_rejected",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.024
+     },
+     {
+      "id": "tests.test_review_fixes.ReviewFixes.test_methods_route_exists",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.076
+     },
+     {
+      "id": "tests.test_review_fixes.ReviewFixes.test_path_whitelist_blocks_sibling_directory",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.007
+     },
+     {
+      "id": "tests.test_review_fixes.ReviewFixes.test_queue_deduplicates_active_runs",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.06
+     },
+     {
+      "id": "tests.test_review_fixes.ReviewFixes.test_unconfirmed_counts_are_refused",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.017
+     },
+     {
+      "id": "tests.test_review_fixes.ReviewFixes.test_unknown_config_key_is_rejected",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.023
+     },
+     {
+      "id": "tests.test_review_fixes.ReviewFixes.test_zip_export_returns_zip",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.067
+     },
+     {
+      "id": "tests.test_science_contract.FateFallback.test_compute_fate_recovers_from_solver_error",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_science_contract.FateFallback.test_direct_absorption_is_finite_and_normalized",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.01
+     },
+     {
+      "id": "tests.test_science_contract.PreprocessingDeclaration.test_auto_and_standalone_share_velocity_protocol",
+      "status": "passed",
+      "detail": "",
+      "seconds": 119.303
+     },
+     {
+      "id": "tests.test_science_contract.PreprocessingDeclaration.test_declaration_reaches_every_run_record",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.79
+     },
+     {
+      "id": "tests.test_science_contract.PreprocessingDeclaration.test_executed_steps_match_input_scale",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.432
+     },
+     {
+      "id": "tests.test_science_contract.PreprocessingDeclaration.test_unconfirmed_counts_are_refused",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.3
+     },
+     {
+      "id": "tests.test_science_contract.PreprocessingDeclaration.test_unknown_scale_keeps_values_untouched",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.467
+     },
+     {
+      "id": "tests.test_science_contract.RegVeloContract.test_regvelo_audit_fields_are_not_hardcoded",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.004
+     },
+     {
+      "id": "tests.test_science_contract.RegVeloContract.test_regvelo_is_never_reported_ready",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.062
+     },
+     {
+      "id": "tests.test_science_contract.RegVeloContract.test_regvelo_output_protocol_is_declared_truthfully",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_science_contract.RegVeloContract.test_regvelo_refuses_to_fabricate_velocity",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.007
+     },
+     {
+      "id": "tests.test_science_contract.VeloviSmoke.test_velovi_trains_on_ms_mu",
+      "status": "skipped",
+      "detail": "veloVI 隔离环境（.venv-velovi）未就绪：真实 smoke 未运行，不代表通过",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_science_contract.VelovlInputContract.test_adapter_registers_ms_mu_not_raw_counts",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_science_contract.VelovlInputContract.test_contract_requires_raw_splice_counts",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_science_contract.VelovlInputContract.test_platform_choices_are_explicit",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_terms.Terms.test_api_terms_endpoint",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.023
+     },
+     {
+      "id": "tests.test_terms.Terms.test_dataset_preview_marks_reference_translation",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.117
+     },
+     {
+      "id": "tests.test_terms.Terms.test_glossary_entries_are_curated",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_terms.Terms.test_lookup_exact_and_case_insensitive",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.0
+     },
+     {
+      "id": "tests.test_ui_smoke.UiSmoke.test_data_page",
+      "status": "passed",
+      "detail": "",
+      "seconds": 2.277
+     },
+     {
+      "id": "tests.test_ui_smoke.UiSmoke.test_model_page",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.468
+     },
+     {
+      "id": "tests.test_ui_smoke.UiSmoke.test_overview_page",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.354
+     },
+     {
+      "id": "tests.test_ui_smoke.UiSmoke.test_reading_pages_does_not_queue_jobs",
+      "status": "passed",
+      "detail": "",
+      "seconds": 1.99
+     },
+     {
+      "id": "tests.test_ui_smoke.UiSmoke.test_reports_page",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.351
+     },
+     {
+      "id": "tests.test_ui_smoke.UiSmoke.test_results_page",
+      "status": "passed",
+      "detail": "",
+      "seconds": 0.344
+     },
+     {
+      "id": "tests.test_worker.Worker.test_worker_completes_qc_job",
+      "status": "passed",
+      "detail": "",
+      "seconds": 3.911
+     }
+    ],
+    "text_tail": "...............................................................F..F...............................................s...........................................................................................................................s........................................................................s..............\n======================================================================\nFAIL: test_console_redirector_matches_distribution (tests.test_desktop.WindowsGuiLauncher.test_console_redirector_matches_distribution)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_baseline\\head-export\\tests\\test_desktop.py\", line 73, in test_console_redirector_matches_distribution\n    self.assertEqual(actual.read_bytes(), official.read_bytes())\nAssertionError: b'MZx\\x00\\x01\\x00\\x00\\x00\\x04\\x00\\x00\\x00\\x00[132420 chars]\\x00' != b'MZ\\x90\\x00\\x03\\x00\\x00\\x00\\x04\\x00\\x00\\x00\\[790233 chars]\\x00'\n\n======================================================================\nFAIL: test_installed_pythonw_is_gui_executable (tests.test_desktop.WindowsGuiLauncher.test_installed_pythonw_is_gui_executable)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_baseline\\head-export\\tests\\test_desktop.py\", line 77, in test_installed_pythonw_is_gui_executable\n    self.assertEqual(pe_subsystem(ROOT / '.venv/Scripts/pythonw.exe'), 2)\nAssertionError: 3 != 2\n\n----------------------------------------------------------------------\nRan 325 tests in 609.321s\n\nFAILED (failures=2, skipped=3)\n",
+    "arithmetic_check": {
+     "passed+failed+errors+skipped": 325,
+     "collected": 325,
+     "ok": true,
+     "note": ""
+    }
+   }
+  ],
+  "notes": [
+   "后端测试在 HEAD(0cfed72) 的导出副本中运行：git ls-tree/cat-file 导出到 C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_baseline\\head-export，并 junction 复用 .venv / web/node_modules / web/dist。"
+  ]
+ },
+ "frontend": {
+  "runs": [
+   {
+    "label": "tsc --noEmit",
+    "command": "npx --no-install tsc --noEmit",
+    "cwd": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_baseline\\head-export\\web",
+    "exit_code": 0,
+    "passed": true,
+    "error_count": 0,
+    "output_tail": ""
+   },
+   {
+    "label": "npm test",
+    "command": "npm test（tsc -p tsconfig.test.json && node --test tests/net.test.mjs）",
+    "cwd": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_baseline\\head-export\\web",
+    "exit_code": 0,
+    "passed": true,
+    "summary": {
+     "tests": 11,
+     "pass": 11,
+     "fail": 0,
+     "skipped": 0,
+     "todo": 0,
+     "cancelled": 0
+    },
+    "output_tail": "> cellflow-web@1.0.0 test\n> tsc -p tsconfig.test.json && node --test tests/net.test.mjs\n\n✔ Failed to fetch 被分类为本机服务不可达，并给出可执行提示 (4.4329ms)\n✔ 主动取消（AbortError）必须原样抛出，不能被包装成服务不可达 (0.25ms)\n✔ HTTP 500 保留状态码与后端 detail，不误判为断网 (0.2678ms)\n✔ 404 被识别为“任务已不存在”，与暂时失联区分开 (0.2223ms)\n✔ 2xx 但不是 JSON 时给出可读错误而不是语法异常 (0.3116ms)\n✔ 单次失联不丢任务：上报 retry 后继续拿到 done (62.849ms)\n✔ 连续失联达到阈值停止轮询，但绝不丢弃任务记录 (71.0362ms)\n✔ 任务 404 才是“确已消失”，此时才允许 forget (26.3583ms)\n✔ 业务错误（500）立即停止并上报 fatal，而不是无限重试 (15.5734ms)\n✔ 切换任务后旧轮询不再回写（避免张冠李戴） (16.3141ms)\n✔ 停止后不再发出请求（组件卸载即取消） (16.555ms)\nℹ tests 11\nℹ suites 0\nℹ pass 11\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 327.8181"
+   }
+  ],
+  "notes": []
+ },
+ "environment_notes": [
+  "采集开始时 venv 是否已安装 httpx2：是",
+  "before_httpx2 用 import 阻断（P3_BLOCK_MODULES=httpx2,httpcore2）模拟“包不存在”，没有真正卸载共享 venv 里的包——因为同一 venv 正被并行任务使用。",
+  "本次复用上一轮 test_baseline.json 的测试结果（--reuse-existing），未重新执行测试。"
+ ],
+ "failure_analysis": [
+  {
+   "test": "unittest.loader._FailedTest.tests.test_api_pagination",
+   "status": "error",
+   "status_by_run": {
+    "before_httpx2_blocked": "error"
+   },
+   "category": "environment",
+   "classification": "environment_missing_httpx2",
+   "reason": "starlette.testclient 需要 httpx2；复制来的 venv 未安装（CI 会 pip install httpx2）。装上 httpx2 后同一批用例全部通过，因此归为环境缺失而不是代码缺陷",
+   "detail": "File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\case.py\", line 579, in _callTestMethod     if method() is not None:        ^^^^^^^^   File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 34, in testFailure     raise self._exception ImportError: Failed to import test module: tests.test_api_pagination Traceback (most recent call last):   File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 419, in _find_test_path     module = ",
+   "seen_in_runs": [
+    "before_httpx2_blocked"
+   ]
+  },
+  {
+   "test": "unittest.loader._FailedTest.tests.test_api_surface",
+   "status": "error",
+   "status_by_run": {
+    "before_httpx2_blocked": "error"
+   },
+   "category": "environment",
+   "classification": "environment_missing_httpx2",
+   "reason": "starlette.testclient 需要 httpx2；复制来的 venv 未安装（CI 会 pip install httpx2）。装上 httpx2 后同一批用例全部通过，因此归为环境缺失而不是代码缺陷",
+   "detail": "File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\case.py\", line 579, in _callTestMethod     if method() is not None:        ^^^^^^^^   File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 34, in testFailure     raise self._exception ImportError: Failed to import test module: tests.test_api_surface Traceback (most recent call last):   File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 419, in _find_test_path     module = sel",
+   "seen_in_runs": [
+    "before_httpx2_blocked"
+   ]
+  },
+  {
+   "test": "unittest.loader._FailedTest.tests.test_dataset_identity",
+   "status": "error",
+   "status_by_run": {
+    "before_httpx2_blocked": "error"
+   },
+   "category": "environment",
+   "classification": "environment_missing_httpx2",
+   "reason": "starlette.testclient 需要 httpx2；复制来的 venv 未安装（CI 会 pip install httpx2）。装上 httpx2 后同一批用例全部通过，因此归为环境缺失而不是代码缺陷",
+   "detail": "File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\case.py\", line 579, in _callTestMethod     if method() is not None:        ^^^^^^^^   File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 34, in testFailure     raise self._exception ImportError: Failed to import test module: tests.test_dataset_identity Traceback (most recent call last):   File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 419, in _find_test_path     module ",
+   "seen_in_runs": [
+    "before_httpx2_blocked"
+   ]
+  },
+  {
+   "test": "tests.test_desktop.WindowsGuiLauncher.test_console_redirector_matches_distribution",
+   "status": "failed",
+   "status_by_run": {
+    "before_httpx2_blocked": "failed",
+    "after_httpx2": "failed"
+   },
+   "category": "environment",
+   "classification": "environment_copied_venv",
+   "reason": "复制 venv 的 Scripts/*.exe 与官方发行版不一致（PE subsystem / 字节不同）",
+   "detail": "File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\case.py\", line 579, in _callTestMethod     if method() is not None:        ^^^^^^^^   File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_baseline\\head-export\\tests\\test_desktop.py\", line 73, in test_console_redirector_matches_distribution     self.assertEqual(actual.read_bytes(), official.read_bytes()) AssertionError: b'MZx\\x00\\x01\\x00\\x00\\x00\\x04\\x00\\x00\\x00\\x00[132420 chars]\\x00' != b'MZ\\x90\\x00\\x03\\x00\\x00\\x00\\x04\\x00\\x00\\x00\\[790233 chars]\\x00'",
+   "seen_in_runs": [
+    "before_httpx2_blocked",
+    "after_httpx2"
+   ]
+  },
+  {
+   "test": "tests.test_desktop.WindowsGuiLauncher.test_installed_pythonw_is_gui_executable",
+   "status": "failed",
+   "status_by_run": {
+    "before_httpx2_blocked": "failed",
+    "after_httpx2": "failed"
+   },
+   "category": "environment",
+   "classification": "environment_copied_venv",
+   "reason": "复制 venv 的 Scripts/*.exe 与官方发行版不一致（PE subsystem / 字节不同）",
+   "detail": "File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\case.py\", line 579, in _callTestMethod     if method() is not None:        ^^^^^^^^   File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\tmp_p3_baseline\\head-export\\tests\\test_desktop.py\", line 77, in test_installed_pythonw_is_gui_executable     self.assertEqual(pe_subsystem(ROOT / '.venv/Scripts/pythonw.exe'), 2) AssertionError: 3 != 2",
+   "seen_in_runs": [
+    "before_httpx2_blocked",
+    "after_httpx2"
+   ]
+  },
+  {
+   "test": "tests.test_download_hotfix.ReconcileContract.test_list_endpoint_exposes_reconcile_fields",
+   "status": "skipped",
+   "status_by_run": {
+    "before_httpx2_blocked": "skipped"
+   },
+   "category": "environment",
+   "classification": "environment_missing_httpx2",
+   "reason": "starlette.testclient 需要 httpx2；复制来的 venv 未安装（CI 会 pip install httpx2）。装上 httpx2 后同一批用例全部通过，因此归为环境缺失而不是代码缺陷",
+   "detail": "缺少 fastapi 运行环境：The starlette.testclient module requires the httpx2 package to be installed. You can install this with:     $ pip install httpx2 ",
+   "seen_in_runs": [
+    "before_httpx2_blocked"
+   ]
+  },
+  {
+   "test": "tests.test_downloads.Downloads.test_api_starts_and_reports_download",
+   "status": "error",
+   "status_by_run": {
+    "before_httpx2_blocked": "error"
+   },
+   "category": "environment",
+   "classification": "environment_missing_httpx2",
+   "reason": "starlette.testclient 需要 httpx2；复制来的 venv 未安装（CI 会 pip install httpx2）。装上 httpx2 后同一批用例全部通过，因此归为环境缺失而不是代码缺陷",
+   "detail": "File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\.venv\\Lib\\site-packages\\fastapi\\testclient.py\", line 1, in <module>     from starlette.testclient import TestClient as TestClient  # noqa     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\.venv\\Lib\\site-packages\\starlette\\testclient.py\", line 34, in <module>     raise RuntimeError( RuntimeError: The starlette.testclient module requires the httpx2 package to be installed. You can install this with:     $ pip install httpx2",
+   "seen_in_runs": [
+    "before_httpx2_blocked"
+   ]
+  },
+  {
+   "test": "setUpClass (tests.test_figures_semantics.PdfGeometryF17)",
+   "status": "skipped",
+   "status_by_run": {
+    "before_httpx2_blocked": "skipped",
+    "after_httpx2": "skipped"
+   },
+   "category": "environment",
+   "classification": "environment_missing_pypdf",
+   "reason": "pypdf 未列入 requirements.txt，CI 单独安装 pypdf==6.21.2",
+   "detail": "pypdf 不可用：No module named 'pypdf'",
+   "seen_in_runs": [
+    "before_httpx2_blocked",
+    "after_httpx2"
+   ]
+  },
+  {
+   "test": "unittest.loader._FailedTest.tests.test_jobs_meta",
+   "status": "error",
+   "status_by_run": {
+    "before_httpx2_blocked": "error"
+   },
+   "category": "environment",
+   "classification": "environment_missing_httpx2",
+   "reason": "starlette.testclient 需要 httpx2；复制来的 venv 未安装（CI 会 pip install httpx2）。装上 httpx2 后同一批用例全部通过，因此归为环境缺失而不是代码缺陷",
+   "detail": "File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\case.py\", line 579, in _callTestMethod     if method() is not None:        ^^^^^^^^   File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 34, in testFailure     raise self._exception ImportError: Failed to import test module: tests.test_jobs_meta Traceback (most recent call last):   File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 419, in _find_test_path     module = self.",
+   "seen_in_runs": [
+    "before_httpx2_blocked"
+   ]
+  },
+  {
+   "test": "tests.test_memory.Memory.test_api_rejects_when_memory_check_fails",
+   "status": "error",
+   "status_by_run": {
+    "before_httpx2_blocked": "error"
+   },
+   "category": "environment",
+   "classification": "environment_missing_httpx2",
+   "reason": "starlette.testclient 需要 httpx2；复制来的 venv 未安装（CI 会 pip install httpx2）。装上 httpx2 后同一批用例全部通过，因此归为环境缺失而不是代码缺陷",
+   "detail": "File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\.venv\\Lib\\site-packages\\fastapi\\testclient.py\", line 1, in <module>     from starlette.testclient import TestClient as TestClient  # noqa     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\.venv\\Lib\\site-packages\\starlette\\testclient.py\", line 34, in <module>     raise RuntimeError( RuntimeError: The starlette.testclient module requires the httpx2 package to be installed. You can install this with:     $ pip install httpx2",
+   "seen_in_runs": [
+    "before_httpx2_blocked"
+   ]
+  },
+  {
+   "test": "tests.test_pipeline.Pipeline.test_velovi_runs_in_isolated_environment",
+   "status": "skipped",
+   "status_by_run": {
+    "before_httpx2_blocked": "skipped",
+    "after_httpx2": "skipped"
+   },
+   "category": "environment",
+   "classification": "environment_missing_velovi",
+   "reason": "本仓库缺 .venv-velovi 隔离环境（scvi-tools 1.2）",
+   "detail": "veloVI 隔离环境（.venv-velovi）未就绪",
+   "seen_in_runs": [
+    "before_httpx2_blocked",
+    "after_httpx2"
+   ]
+  },
+  {
+   "test": "tests.test_projects.Projects.test_api_project_lifecycle",
+   "status": "error",
+   "status_by_run": {
+    "before_httpx2_blocked": "error"
+   },
+   "category": "environment",
+   "classification": "environment_missing_httpx2",
+   "reason": "starlette.testclient 需要 httpx2；复制来的 venv 未安装（CI 会 pip install httpx2）。装上 httpx2 后同一批用例全部通过，因此归为环境缺失而不是代码缺陷",
+   "detail": "File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\.venv\\Lib\\site-packages\\fastapi\\testclient.py\", line 1, in <module>     from starlette.testclient import TestClient as TestClient  # noqa     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   File \"C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\.venv\\Lib\\site-packages\\starlette\\testclient.py\", line 34, in <module>     raise RuntimeError( RuntimeError: The starlette.testclient module requires the httpx2 package to be installed. You can install this with:     $ pip install httpx2",
+   "seen_in_runs": [
+    "before_httpx2_blocked"
+   ]
+  },
+  {
+   "test": "unittest.loader._FailedTest.tests.test_review_fixes",
+   "status": "error",
+   "status_by_run": {
+    "before_httpx2_blocked": "error"
+   },
+   "category": "environment",
+   "classification": "environment_missing_httpx2",
+   "reason": "starlette.testclient 需要 httpx2；复制来的 venv 未安装（CI 会 pip install httpx2）。装上 httpx2 后同一批用例全部通过，因此归为环境缺失而不是代码缺陷",
+   "detail": "File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\case.py\", line 579, in _callTestMethod     if method() is not None:        ^^^^^^^^   File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 34, in testFailure     raise self._exception ImportError: Failed to import test module: tests.test_review_fixes Traceback (most recent call last):   File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 419, in _find_test_path     module = se",
+   "seen_in_runs": [
+    "before_httpx2_blocked"
+   ]
+  },
+  {
+   "test": "tests.test_science_contract.VeloviSmoke.test_velovi_trains_on_ms_mu",
+   "status": "skipped",
+   "status_by_run": {
+    "before_httpx2_blocked": "skipped",
+    "after_httpx2": "skipped"
+   },
+   "category": "environment",
+   "classification": "environment_missing_velovi",
+   "reason": "本仓库缺 .venv-velovi 隔离环境（scvi-tools 1.2）",
+   "detail": "veloVI 隔离环境（.venv-velovi）未就绪：真实 smoke 未运行，不代表通过",
+   "seen_in_runs": [
+    "before_httpx2_blocked",
+    "after_httpx2"
+   ]
+  },
+  {
+   "test": "unittest.loader._FailedTest.tests.test_terms",
+   "status": "error",
+   "status_by_run": {
+    "before_httpx2_blocked": "error"
+   },
+   "category": "environment",
+   "classification": "environment_missing_httpx2",
+   "reason": "starlette.testclient 需要 httpx2；复制来的 venv 未安装（CI 会 pip install httpx2）。装上 httpx2 后同一批用例全部通过，因此归为环境缺失而不是代码缺陷",
+   "detail": "File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\case.py\", line 579, in _callTestMethod     if method() is not None:        ^^^^^^^^   File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 34, in testFailure     raise self._exception ImportError: Failed to import test module: tests.test_terms Traceback (most recent call last):   File \"C:\\Users\\mtgmc\\Documents\\Codex\\2026-10-24\\referenced-chatgpt-conversation-this-is-an\\outputs\\CellFlow\\.runtimes\\cpython-3.11-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 419, in _find_test_path     module = self._get",
+   "seen_in_runs": [
+    "before_httpx2_blocked"
+   ]
+  }
+ ]
+}
