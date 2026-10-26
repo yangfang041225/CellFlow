@@ -54,6 +54,37 @@ export type EnvInfo = {
   queue: Record<string, number>;
 };
 
+/** P3-01：GEO 补充文件清单里的一条（不含任何下载行为）。 */
+export type GeoFile = {
+  name: string; url: string; level: 'series' | 'sample' | string; accession: string;
+  size_bytes: number | null; size_text: string; size_source: string;
+  kind: string; compression: string; importable: boolean;
+  /** verified_by_content / metadata_supported / filename_only / absent —— 只有内容验证过才算存在。 */
+  splice_evidence: string; splice_filename_hint: boolean;
+  recommended_for: string[]; download_state: string; modified: string;
+};
+
+export type GeoManifest = {
+  ok: boolean; accession: string; accession_kind?: string;
+  info: {
+    ok?: boolean; uid?: string; accession?: string; title?: string; summary?: string;
+    taxon?: string; n_samples?: number | string; pdat?: string; gdstype?: string;
+    entry_type?: string; source?: string; reason?: string;
+  };
+  files: GeoFile[]; file_count: number; total_bytes: number; total_bytes_known: boolean;
+  dir_url: string; official_page: string; note: string;
+};
+
+/** P3-02：数据与存储状态。 */
+export type StorageInfo = {
+  ok: boolean; data_root: string; is_default: boolean; configured: string;
+  env_override: boolean; exists: boolean; writable: boolean;
+  free_bytes: number | null; total_bytes: number | null;
+  paths: Record<string, string>;
+  staging: { total_bytes: number; count: number; items: unknown[]; error?: string };
+  settings_file: string;
+};
+
 /** 后端 downloads.list_tasks() 的返回项（含创建时间，用于失败后再核对）。 */
 export type DownloadTask = {
   id: string; source: string; identifier: string; project?: string;
@@ -172,6 +203,28 @@ export const api = {
   }>(`/api/downloads/${id}`),
   cancelDownload: (id: string) =>
     request<{ ok: boolean; message: string }>(`/api/downloads/${id}/cancel`, { method: 'POST' }),
+  // ---- P3-01：先预览、再下载用户勾选的文件（不会自动下载整个 Series）
+  geoManifest: (gse: string, signal?: AbortSignal) =>
+    request<GeoManifest>(`/api/public/geo/${encodeURIComponent(gse)}/manifest`, signalOptions(signal)),
+  geoDownload: (gse: string, files: string[]) =>
+    request<{ ok: boolean; ids: string[]; count: number; files: string[]; note: string }>(
+      '/api/public/geo/download', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gse, files }),
+      }),
+  // ---- P3-02：数据根目录与 staging 占用
+  storage: () => request<StorageInfo>('/api/storage'),
+  setDataRoot: (path: string, confirm: boolean, create = true) =>
+    request<{ ok: boolean; data_root: string; note: string }>('/api/storage/data-root', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, confirm, create }),
+    }),
+  cleanupStorage: (maxAgeHours = 24, dryRun = true) =>
+    request<{ ok: boolean; dry_run: boolean; removed: unknown[]; removed_bytes: number }>(
+      '/api/storage/cleanup', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ max_age_hours: maxAgeHours, dry_run: dryRun }),
+      }),
   health: () => request<{
     ok: boolean; root: string; queue: Record<string, number>;
     device: string; projects: string;

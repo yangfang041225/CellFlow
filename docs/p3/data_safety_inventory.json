@@ -1,0 +1,438 @@
+{
+ "generated_at": "2026-10-26T08:00:56+08:00",
+ "repo": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix",
+ "policy": {
+  "never_commit": [
+   "data/",
+   "results/",
+   "logs/",
+   ".venv/",
+   ".venv-*/",
+   "web/node_modules/",
+   "web/dist/",
+   "installation.json",
+   "*.sqlite",
+   "*.sqlite3",
+   "*.log",
+   ".env",
+   ".env.*",
+   "*.key",
+   "*.pem",
+   "sample-run/",
+   "verification/",
+   "tools/_hotfix/",
+   "tmp*/",
+   "pip-*/"
+  ],
+  "rules_source": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\.gitignore"
+ },
+ "copies": [
+  {
+   "name": "CellFlow-hotfix",
+   "path": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix",
+   "has_git": true,
+   "dirs": {
+    "data": {
+     "exists": true,
+     "files": 27,
+     "bytes": 383421991
+    },
+    "results": {
+     "exists": true,
+     "files": 112,
+     "bytes": 12199096
+    },
+    "logs": {
+     "exists": true,
+     "files": 2,
+     "bytes": 544
+    },
+    "web/dist": {
+     "exists": true,
+     "files": 18,
+     "bytes": 3994079
+    },
+    "web/node_modules": {
+     "exists": true,
+     "files": 50738,
+     "bytes": 137765165
+    },
+    ".venv": {
+     "exists": true,
+     "files": 26794,
+     "bytes": 1520764953
+    },
+    ".venv-velovi": {
+     "exists": false,
+     "files": 0,
+     "bytes": 0
+    },
+    ".git": {
+     "exists": true,
+     "files": 97,
+     "bytes": 3758337
+    },
+    "verification": {
+     "exists": false,
+     "files": 0,
+     "bytes": 0
+    },
+    "sample-run": {
+     "exists": false,
+     "files": 0,
+     "bytes": 0
+    },
+    "tmp_p3_baseline": {
+     "exists": true,
+     "files": 18,
+     "bytes": 236073
+    }
+   },
+   "total": {
+    "exists": true,
+    "files": 78774,
+    "bytes": 2078209757
+   }
+  },
+  {
+   "name": "CellFlow",
+   "path": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow",
+   "has_git": false,
+   "dirs": {
+    "data": {
+     "exists": false,
+     "files": 0,
+     "bytes": 0
+    },
+    "results": {
+     "exists": true,
+     "files": 571,
+     "bytes": 241970803
+    },
+    "logs": {
+     "exists": false,
+     "files": 0,
+     "bytes": 0
+    },
+    "web/dist": {
+     "exists": false,
+     "files": 0,
+     "bytes": 0
+    },
+    "web/node_modules": {
+     "exists": false,
+     "files": 0,
+     "bytes": 0
+    },
+    ".venv": {
+     "exists": true,
+     "files": 21067,
+     "bytes": 807500807
+    },
+    ".venv-velovi": {
+     "exists": true,
+     "files": 36228,
+     "bytes": 2152254732
+    },
+    ".git": {
+     "exists": false,
+     "files": 0,
+     "bytes": 0
+    },
+    "verification": {
+     "exists": true,
+     "files": 16,
+     "bytes": 19122
+    },
+    "sample-run": {
+     "exists": true,
+     "files": 30,
+     "bytes": 5192413
+    },
+    "tmp_p3_baseline": {
+     "exists": false,
+     "files": 0,
+     "bytes": 0
+    }
+   },
+   "total": {
+    "exists": true,
+    "files": 58028,
+    "bytes": 3246602848
+   }
+  },
+  {
+   "name": "CellFlow-audit",
+   "path": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-audit",
+   "has_git": false,
+   "dirs": {
+    "data": {
+     "exists": true,
+     "files": 0,
+     "bytes": 0
+    },
+    "results": {
+     "exists": true,
+     "files": 4,
+     "bytes": 29109
+    },
+    "logs": {
+     "exists": true,
+     "files": 2,
+     "bytes": 448
+    },
+    "web/dist": {
+     "exists": true,
+     "files": 18,
+     "bytes": 3890681
+    },
+    "web/node_modules": {
+     "exists": false,
+     "files": 0,
+     "bytes": 0
+    },
+    ".venv": {
+     "exists": false,
+     "files": 0,
+     "bytes": 0
+    },
+    ".venv-velovi": {
+     "exists": false,
+     "files": 0,
+     "bytes": 0
+    },
+    ".git": {
+     "exists": false,
+     "files": 0,
+     "bytes": 0
+    },
+    "verification": {
+     "exists": true,
+     "files": 16,
+     "bytes": 19122
+    },
+    "sample-run": {
+     "exists": true,
+     "files": 30,
+     "bytes": 5192413
+    },
+    "tmp_p3_baseline": {
+     "exists": false,
+     "files": 0,
+     "bytes": 0
+    }
+   },
+   "total": {
+    "exists": true,
+    "files": 8942,
+    "bytes": 246964323
+   }
+  }
+ ],
+ "gitignore": {
+  "path": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\.gitignore",
+  "exists": true,
+  "lines": [
+   "# Python 环境与缓存",
+   ".venv/",
+   ".venv-*/",
+   ".runtimes/",
+   ".cache/",
+   "__pycache__/",
+   "*.py[cod]",
+   ".pytest_cache/",
+   "# 本地数据、结果、日志（含个人数据，禁止上传）",
+   "data/",
+   "results/",
+   "logs/",
+   "installation.json",
+   "*.sqlite",
+   "*.sqlite3",
+   "*.log",
+   "# 前端依赖与构建产物",
+   "web/node_modules/",
+   "web/dist/",
+   "# 单元测试的临时编译输出（npm test 生成）",
+   "web/.tmp-test/",
+   "# 下载中的半成品（.part 只有校验完成后才会改名）",
+   "*.part",
+   "# 临时文件与本地备份",
+   ".tmp/",
+   "tmp*/",
+   "pip-*/",
+   "pip-build-tracker-*/",
+   "pip-ephem-wheel-cache-*/",
+   "sample-run/",
+   "verification/",
+   "# 本地故障复现/验收脚本与日志（只在本机使用，不进入仓库）",
+   "tools/_hotfix/",
+   "legacy_launchers/",
+   "legacy_ui/",
+   "_backup*/",
+   ".streamlit/",
+   "*.bak",
+   "*.repair",
+   "# 凭据（永远不要提交）",
+   ".env",
+   ".env.*",
+   "*.key",
+   "*.pem"
+  ],
+  "checks": {
+   "data": {
+    "ignored": true,
+    "rule": ".gitignore:11:data/\tdata",
+    "note": null
+   },
+   "results": {
+    "ignored": true,
+    "rule": ".gitignore:12:results/\tresults",
+    "note": null
+   },
+   "logs": {
+    "ignored": true,
+    "rule": ".gitignore:13:logs/\tlogs",
+    "note": null
+   },
+   ".venv": {
+    "ignored": true,
+    "rule": ".gitignore:2:.venv/\t.venv",
+    "note": null
+   },
+   ".venv-velovi": {
+    "ignored": true,
+    "rule": ".gitignore:3:.venv-*/\t.venv-velovi/",
+    "note": null
+   },
+   "web/dist": {
+    "ignored": true,
+    "rule": ".gitignore:21:web/dist/\tweb/dist",
+    "note": null
+   },
+   "web/node_modules": {
+    "ignored": true,
+    "rule": ".gitignore:20:web/node_modules/\tweb/node_modules",
+    "note": null
+   },
+   "installation.json": {
+    "ignored": true,
+    "rule": ".gitignore:14:installation.json\tinstallation.json",
+    "note": null
+   },
+   "tmp_p3_baseline": {
+    "ignored": true,
+    "rule": ".gitignore:30:tmp*/\ttmp_p3_baseline",
+    "note": null
+   },
+   "sample-run": {
+    "ignored": true,
+    "rule": ".gitignore:34:sample-run/\tsample-run/",
+    "note": null
+   },
+   "verification": {
+    "ignored": true,
+    "rule": ".gitignore:35:verification/\tverification/",
+    "note": null
+   },
+   "tools/_hotfix": {
+    "ignored": true,
+    "rule": ".gitignore:37:tools/_hotfix/\ttools/_hotfix",
+    "note": null
+   },
+   "docs/p3/baseline_inventory.md": {
+    "ignored": false,
+    "rule": null,
+    "note": "未被 .gitignore 覆盖"
+   }
+  },
+  "tracked_file_count": 168,
+  "tracked_data_like": []
+ },
+ "user_data": {
+  "projects_json": {
+   "path": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\results\\projects.json",
+   "active": "default",
+   "project_count": 1,
+   "projects": [
+    {
+     "id": "default",
+     "name": "未命名项目",
+     "created": "2026-10-26 04:53"
+    }
+   ]
+  },
+  "jobs": {
+   "path": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\results\\queue.sqlite",
+   "tables": [
+    "jobs",
+    "supervisor"
+   ],
+   "row_counts": {
+    "jobs": 2,
+    "supervisor": 0
+   }
+  },
+  "downloads": {
+   "path": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\data\\public\\.downloads\\state.json",
+   "task_count": 6,
+   "states": {
+    "done": 5,
+    "failed": 1
+   },
+   "identifiers": [
+    "GSE72857"
+   ]
+  },
+  "notes": []
+ },
+ "large_files": [
+  {
+   "path": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\data\\public\\geo_GSE72857__ed86d783.h5ad",
+   "bytes": 111205145,
+   "size": "106.1 MB"
+  },
+  {
+   "path": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\data\\_geo_probe\\geo_GSE72857.h5ad",
+   "bytes": 111205145,
+   "size": "106.1 MB"
+  },
+  {
+   "path": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\data\\public\\geo_GSE72857_GSE72857_umitab__6e001a8f.h5ad",
+   "bytes": 111204697,
+   "size": "106.1 MB"
+  },
+  {
+   "path": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\data\\_probe\\GSM8453300_alloxan.loom.gz",
+   "bytes": 31920351,
+   "size": "30.4 MB"
+  },
+  {
+   "path": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\data\\_probe\\GSM7093919_kdm6bwt.loom.gz",
+   "bytes": 10159290,
+   "size": "9.7 MB"
+  },
+  {
+   "path": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\data\\_probe\\GSE274591_velocyto_h2endoc.h5ad",
+   "bytes": 7561996,
+   "size": "7.2 MB"
+  },
+  {
+   "path": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\results\\c724e9fccd0e434c\\figures\\embedding.html",
+   "bytes": 4874415,
+   "size": "4.6 MB"
+  },
+  {
+   "path": "C:\\Users\\mtgmc\\Documents\\deepseek-harness\\default-workspace\\CellFlow-hotfix\\results\\ea6aeb53a6c043ca\\figures\\embedding.html",
+   "bytes": 4874400,
+   "size": "4.6 MB"
+  }
+ ],
+ "notes": [
+  "数据根在仓库内部：HEAD 的 cellflow/workspace.py 里 ROOT = Path(__file__).resolve().parents[1]，所以 data/、results/、logs/ 都落在仓库目录下，全部被 .gitignore 覆盖，绝不能提交。",
+  "data/ 里是真实科研数据（含 GSE72857 的下载产物），删除或移动需用户确认；本审计只读。",
+  "results/queue.sqlite 是任务队列库（jobs/supervisor 表），results/projects.json 是用户项目清单，data/public/.downloads/state.json 是下载任务状态。",
+  "用户项目数：1（active=default）。",
+  "queue.sqlite 各表行数：{'jobs': 2, 'supervisor': 0}。",
+  "下载任务记录：6 条，状态分布 {'done': 5, 'failed': 1}，数据集 ['GSE72857']。"
+ ]
+}

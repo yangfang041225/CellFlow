@@ -32,6 +32,8 @@ from typing import Callable, Dict, List, Optional
 
 import numpy as np
 
+from . import paths
+
 HTTP_TIMEOUT = (10, 120)
 HTTP_TIMEOUT_SHORT = (6, 25)
 USER_AGENT = 'CellFlow/0.2 (local single-cell workbench; +https://pypi.org/project/h5adify/)'
@@ -119,10 +121,20 @@ def download_file(url: str, target: Path, progress: Optional[Callable[[int, int]
 
     target = Path(target)
     target.parent.mkdir(parents=True, exist_ok=True)
+    # 下载中一律写 <name>.part，只有完整收完才改名为正式文件；
+    # 已存在的正式文件**不能**直接当成完整：旧版本用正式文件名做断点续传，
+    # 可能留下截断文件。这里把它降级为 .part，用 Range 继续收完（服务器不支持
+    # Range 时会从头重下），宁可多一次请求也不静默接受半成品。
+    part = paths.partial_path(target)
+    if target.is_file() and target.stat().st_size > 0:
+        if part.exists():
+            target.unlink(missing_ok=True)
+        else:
+            target.replace(part)
     session = _session()
     last_error = None
     for attempt in range(attempts):
-        have = target.stat().st_size if target.exists() else 0
+        have = part.stat().st_size if part.exists() else 0
         headers = {'Range': f'bytes={have}-'} if have else {}
         try:
             with session.get(url, stream=True, timeout=HTTP_TIMEOUT, headers=headers) as response:
@@ -134,12 +146,15 @@ def download_file(url: str, target: Path, progress: Optional[Callable[[int, int]
                     have = 0
                     total = int(response.headers.get('content-length') or 0)
                 elif response.status_code == 416 and have:
-                    return target  # 已经完整
+                    part.replace(target)   # 服务器认为已发完；完整性由调用方校验
+                    return target
                 else:
                     response.raise_for_status()
                     mode, total = 'wb', 0
+                # 空间门禁：大小未知时也至少要求 MIN_FREE_BYTES 的余量
+                paths.ensure_free_space(part.parent, total or 0, label='下载')
                 done = have
-                with open(target, mode) as handle:
+                with open(part, mode) as handle:
                     for chunk in response.iter_content(chunk_size=1024 * 1024):
                         if not chunk:
                             continue
@@ -150,8 +165,10 @@ def download_file(url: str, target: Path, progress: Optional[Callable[[int, int]
                         if progress:
                             progress(done, total)
                         _emit(done, total)
-            if total and target.stat().st_size < total:
-                raise PublicDataError(f'下载不完整：{target.stat().st_size}/{total} 字节')
+            size = part.stat().st_size if part.exists() else 0
+            if total and size < total:
+                raise PublicDataError(f'下载不完整：{size}/{total} 字节')
+            part.replace(target)
             return target
         except DownloadCancelled:
             raise
@@ -242,8 +259,309 @@ def _list_geo_supplementary(gse: str) -> List[str]:
 
 
 def list_geo_files(gse: str) -> List[str]:
-    """列出某个 GSE 的补充文件直链（给界面/命令行预览用）。"""
+    """列出某个 GSE 的补充文件直链（旧接口，保留兼容）。"""
     return _list_geo_supplementary(gse)
+
+
+# ---------------------------------------------------------------- P3-01 清单
+# GEO 的 suppl 目录是 Apache "Index of" 页面，<pre> 里每行是
+#   <a href="NAME">NAME</a>  YYYY-MM-DD HH:MM  SIZE
+# 其中 SIZE 是 113K / 16M / 1.2G 这类四舍五入值。
+# 因此**不下载任何文件**就能列出文件名、大小与修改时间；精确字节数可按需 HEAD。
+GEO_SAMPLE = 'https://ftp.ncbi.nlm.nih.gov/geo/samples/{stub}/{gsm}/suppl/'
+EUTILS_SUMMARY = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi'
+
+#: 可被 CellFlow 直接尝试导入的扩展名（顺序有意义：复合扩展名在前）
+IMPORTABLE_SUFFIXES = ('.loom.gz', '.h5ad', '.loom', '.h5', '.mtx.gz', '.mtx',
+                       '.tar', '.tar.gz', '.tgz', '.zip', '.csv', '.tsv', '.txt.gz')
+
+_SIZE_UNITS = {'B': 1, 'K': 1024, 'M': 1024 ** 2, 'G': 1024 ** 3, 'T': 1024 ** 4}
+
+
+def geo_stub(accession: str) -> str:
+    """GSE72857 -> GSE72nnn；GSM7093919 -> GSM709nnn（NCBI 的目录分片规则）。"""
+    acc = (accession or '').strip().upper()
+    digits = re.sub(r'\D', '', acc)
+    if len(digits) < 4:
+        raise PublicDataError(f'无法识别编号：{accession}')
+    return acc[:3] + digits[:-3] + 'nnn'
+
+
+def geo_supplementary_url(gse: str) -> str:
+    gse = gse.strip().upper()
+    return GEO_SERIES.format(stub=geo_stub(gse), gse=gse)
+
+
+def geo_sample_url(gsm: str) -> str:
+    gsm = gsm.strip().upper()
+    return GEO_SAMPLE.format(stub=geo_stub(gsm), gsm=gsm)
+
+
+def _size_to_bytes(text: str) -> Optional[int]:
+    """113K -> 115712（按 1K=1024 取上界，作为空间预检查的保守估算）。"""
+    text = (text or '').strip().upper()
+    if not text or text == '-':
+        return None
+    match = re.match(r'^([0-9]+(?:\.[0-9]+)?)\s*([BKMGTP]?)', text)
+    if not match:
+        return None
+    value = float(match.group(1))
+    unit = match.group(2) or 'B'
+    factor = _SIZE_UNITS.get(unit)
+    if factor is None:
+        return None
+    return int(value * factor)
+
+
+def _parse_ftp_index(text: str) -> List[Dict[str, object]]:
+    """解析 Apache 目录页里的文件行（只接受能解析出日期的行）。"""
+    entries: List[Dict[str, object]] = []
+    line_re = re.compile(
+        r'<a href="(?P<name>[^"/?][^"]*)">.*?</a>\s+'
+        r'(?P<date>\d{4}-\d{2}-\d{2})\s+(?P<time>\d{2}:\d{2})\s+(?P<size>[-0-9.]+[BKMGTP]?)',
+        re.IGNORECASE)
+    for line in (text or '').splitlines():
+        match = line_re.search(line)
+        if not match:
+            continue
+        name = match.group('name').strip()
+        if not name or name in ('.', '..'):
+            continue
+        size_text = match.group('size').strip()
+        entries.append({
+            'name': name,
+            'modified': f"{match.group('date')} {match.group('time')}",
+            'size_text': size_text,
+            'size_bytes': _size_to_bytes(size_text),
+            'size_source': 'ftp_listing' if size_text != '-' else 'unknown',
+        })
+    return entries
+
+
+def _classify_file(name: str) -> Dict[str, object]:
+    """按扩展名给出用途提示。**只按名字分类，不代表文件里真有该数据。**"""
+    low = name.lower()
+    compression = ''
+    for suffix in ('.gz', '.bz2', '.zip', '.tar', '.tgz'):
+        if low.endswith(suffix):
+            compression = suffix
+            break
+    # 判断真实类型时要先去掉压缩后缀：barcodes.tsv.gz 属于 table，不是 other
+    bare = low
+    for suffix in ('.gz', '.bz2'):
+        if bare.endswith(suffix):
+            bare = bare[: -len(suffix)]
+            break
+    if low.endswith('.loom.gz') or low.endswith('.loom'):
+        kind = 'loom'
+    elif low.endswith('.h5ad'):
+        kind = 'h5ad'
+    elif low.endswith('.h5'):
+        kind = '10x_h5'
+    elif bare.endswith('.mtx'):
+        kind = '10x_mtx'
+    elif low.endswith(('.tar', '.tgz', '.zip')):
+        kind = 'archive'
+    elif bare.endswith(('.csv', '.tsv', '.txt')):
+        kind = 'table'
+    else:
+        kind = 'other'
+    # 「文件名暗示」是证据等级最低的一档，绝不等于已验证
+    filename_splice_hint = any(token in low for token in
+                               ('velocyto', 'spliced', 'unspliced', 'splicing', 'loom'))
+    importable = any(low.endswith(suffix) for suffix in IMPORTABLE_SUFFIXES)
+    if kind == 'loom':
+        evidence = 'filename_only'
+    elif filename_splice_hint:
+        evidence = 'filename_only'
+    else:
+        evidence = 'absent'
+    return {
+        'kind': kind,
+        'compression': compression,
+        'importable': bool(importable),
+        'splice_evidence': evidence,
+        'splice_filename_hint': bool(filename_splice_hint),
+    }
+
+
+def _file_record(name: str, url: str, level: str, accession: str,
+                 gse: str = '', gsm: str = '', size_bytes=None,
+                 size_text='', size_source='unknown', modified='') -> Dict[str, object]:
+    info = _classify_file(name)
+    record = {
+        'name': name,
+        'url': url,
+        'level': level,                 # series / sample
+        'accession': accession,         # 该目录对应的 GSE 或 GSM
+        'series': gse,
+        'sample': gsm,
+        'modified': modified,
+        'size_bytes': size_bytes,
+        'size_text': size_text,
+        'size_source': size_source,
+        'recommended_for': [],
+        'splice_evidence': info['splice_evidence'],
+        'splice_filename_hint': info['splice_filename_hint'],
+        'kind': info['kind'],
+        'compression': info['compression'],
+        'importable': info['importable'],
+        'download_state': 'not_downloaded',
+        'checksum': None,
+        'metadata_source': 'ftp_listing',
+    }
+    if info['kind'] in ('loom', 'h5ad'):
+        record['recommended_for'] = ['expression', 'splice_candidate']
+    elif info['kind'] in ('10x_h5', '10x_mtx', 'table'):
+        record['recommended_for'] = ['expression']
+    return record
+
+
+def geo_list_files(gse: str) -> Dict[str, object]:
+    """列出某个 GSE 的补充文件（**只读目录页，不下载任何数据**）。"""
+    gse = (gse or '').strip().upper()
+    if not re.match(r'^GSE\d{3,}$', gse):
+        raise PublicDataError('GEO 只接受 GSE 系列编号，例如 GSE84133')
+    url = geo_supplementary_url(gse)
+    session = _session()
+    response = session.get(url, timeout=HTTP_TIMEOUT)
+    if response.status_code == 404:
+        raise PublicDataError(f'{gse} 没有补充文件目录。该研究可能只提供 SRA 原始数据。')
+    response.raise_for_status()
+    entries = _parse_ftp_index(response.text)
+    files = []
+    for entry in entries:
+        name = str(entry['name'])
+        if not any(name.lower().endswith(suffix) for suffix in IMPORTABLE_SUFFIXES):
+            continue            # supplementary 里的 pdf/png/xlsx 等不属于可导入数据
+        files.append(_file_record(name, url + name, 'series', gse, gse=gse,
+                                  size_bytes=entry['size_bytes'],
+                                  size_text=str(entry['size_text']),
+                                  size_source=str(entry['size_source']),
+                                  modified=str(entry['modified'])))
+    return {
+        'ok': True,
+        'gse': gse,
+        'dir_url': url,
+        'files': files,
+        'file_count': len(files),
+        'total_bytes': sum(int(f['size_bytes'] or 0) for f in files),
+        'total_bytes_known': all(f['size_bytes'] is not None for f in files),
+        'note': '大小来自 NCBI 目录页（四舍五入）；勾选后下载前会用 HEAD 复核精确字节数。',
+    }
+
+
+def geo_sample_files(gsm: str) -> Dict[str, object]:
+    """列出某个 GSM 的补充文件。很多样本没有独立 suppl 目录，需要回退到所属 Series。"""
+    gsm = (gsm or '').strip().upper()
+    if not re.match(r'^GSM\d{3,}$', gsm):
+        raise PublicDataError('GEO 样本编号应形如 GSM7093919')
+    url = geo_sample_url(gsm)
+    session = _session()
+    response = session.get(url, timeout=HTTP_TIMEOUT)
+    if response.status_code == 404:
+        return {'ok': True, 'gsm': gsm, 'dir_url': url, 'files': [], 'file_count': 0,
+                'has_own_directory': False,
+                'note': '该样本没有独立的 suppl 目录；文件通常挂在所属 Series 下。'}
+    response.raise_for_status()
+    files = []
+    for entry in _parse_ftp_index(response.text):
+        name = str(entry['name'])
+        if not any(name.lower().endswith(suffix) for suffix in IMPORTABLE_SUFFIXES):
+            continue
+        files.append(_file_record(name, url + name, 'sample', gsm, gsm=gsm,
+                                  size_bytes=entry['size_bytes'],
+                                  size_text=str(entry['size_text']),
+                                  size_source=str(entry['size_source']),
+                                  modified=str(entry['modified'])))
+    return {'ok': True, 'gsm': gsm, 'dir_url': url, 'files': files,
+            'file_count': len(files), 'has_own_directory': True}
+
+
+def _eutils_summary(accession: str) -> Dict[str, object]:
+    """用 esearch + esummary 取官方元数据，并**始终返回真正的 accession**。"""
+    session = _session()
+    search = session.get(EUTILS, params={
+        'db': 'gds', 'term': f'{accession}[ACCN]', 'retmax': '5', 'retmode': 'json',
+    }, timeout=HTTP_TIMEOUT)
+    search.raise_for_status()
+    ids = []
+    try:
+        ids = list(search.json().get('esearchresult', {}).get('idlist', []) or [])
+    except Exception:
+        ids = re.findall(r'<Id>(\d+)</Id>', search.text)
+    if not ids:
+        return {'ok': False, 'accession': accession, 'reason': 'esearch 未命中'}
+    summary = session.get(EUTILS_SUMMARY, params={
+        'db': 'gds', 'id': ','.join(ids), 'retmode': 'json',
+    }, timeout=HTTP_TIMEOUT)
+    summary.raise_for_status()
+    payload = summary.json().get('result', {})
+    for uid in ids:
+        item = payload.get(uid) or {}
+        if not isinstance(item, dict):
+            continue
+        acc = str(item.get('accession') or '').upper()
+        if acc == accession.upper():
+            return {
+                'ok': True,
+                'uid': uid,                       # GDS 内部 ID，仅用于查询，不能当 GSE 用
+                'accession': acc,
+                'title': item.get('title') or '',
+                'summary': item.get('summary') or '',
+                'taxon': item.get('taxon') or '',
+                'entry_type': item.get('entryType') or '',
+                'n_samples': item.get('n_samples'),
+                'pdat': item.get('PDAT') or '',
+                'gdstype': item.get('gdsType') or '',
+                'source': 'NCBI E-utilities esummary(db=gds)',
+            }
+    first = payload.get(ids[0]) or {}
+    return {'ok': True, 'uid': ids[0],
+            'accession': str(first.get('accession') or accession),
+            'title': str(first.get('title') or ''),
+            'summary': str(first.get('summary') or ''),
+            'taxon': str(first.get('taxon') or ''),
+            'n_samples': first.get('n_samples'),
+            'pdat': str(first.get('PDAT') or ''),
+            'source': 'NCBI E-utilities esummary(db=gds)'}
+
+
+def geo_manifest(gse: str) -> Dict[str, object]:
+    """预览用的完整清单：官方元数据 + 文件列表（不下载数据）。"""
+    gse = (gse or '').strip().upper()
+    listing = geo_list_files(gse)
+    info: Dict[str, object]
+    try:
+        info = _eutils_summary(gse)
+    except Exception as exc:
+        info = {'ok': False, 'accession': gse, 'reason': f'{type(exc).__name__}: {exc}'}
+    return {
+        'ok': True,
+        'accession': gse,
+        'accession_kind': 'GSE',
+        'info': info,
+        'files': listing['files'],
+        'file_count': listing['file_count'],
+        'total_bytes': listing['total_bytes'],
+        'total_bytes_known': listing['total_bytes_known'],
+        'dir_url': listing['dir_url'],
+        'official_page': f'https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc={gse}',
+        'note': listing['note'],
+    }
+
+
+def geo_exact_size(url: str) -> Optional[int]:
+    """用 HEAD 取精确字节数（不下载内容）。失败返回 None。"""
+    session = _session()
+    try:
+        response = session.head(url, timeout=HTTP_TIMEOUT_SHORT, allow_redirects=True)
+        if response.status_code >= 400:
+            return None
+        length = response.headers.get('content-length')
+        return int(length) if length is not None else None
+    except Exception:
+        return None
 
 
 def _parse_soft(soft_text: str) -> Dict[str, Dict[str, str]]:
@@ -295,12 +613,37 @@ def geo_search(query: str, max_results: int = 20) -> List[SearchResult]:
         ids = payload['esearchresult'].get('idlist', [])
     except Exception:
         ids = re.findall(r'<Id>(\d+)</Id>', response.text)
-    out = []
+    if not ids:
+        return []
+    # GDS 的 UID 只是内部检索号，**不能**当 GSE 编号去下载。
+    # 必须再取一次 esummary，用返回里的 accession（GSE…）作为唯一身份。
+    results: List[SearchResult] = []
+    try:
+        summary = session.get(EUTILS_SUMMARY, params={
+            'db': 'gds', 'id': ','.join(ids[:max_results]), 'retmode': 'json',
+        }, timeout=HTTP_TIMEOUT)
+        summary.raise_for_status()
+        payload = summary.json().get('result', {})
+    except Exception:
+        payload = {}
     for ident in ids[:max_results]:
-        out.append(SearchResult(source='geo', dataset_id=str(ident),
-                                title=f'NCBI GDS {ident}（在 GEO 页面上确认是不是 GSE 编号）',
-                                url=f'https://www.ncbi.nlm.nih.gov/gds/?term={ident}'))
-    return out
+        item = payload.get(ident) or {}
+        accession = str(item.get('accession') or '').upper()
+        title = str(item.get('title') or '').strip()
+        if not accession:
+            continue                      # 拿不到真实编号就不返回，避免用户误用内部 ID
+        results.append(SearchResult(
+            source='geo',
+            dataset_id=accession,
+            title=title or accession,
+            url=f'https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc={accession}',
+            extra={
+                'uid': ident,             # 仅作调试用，不能用于下载
+                'taxon': str(item.get('taxon') or ''),
+                'n_samples': str(item.get('n_samples') or ''),
+                'type': str(item.get('entryType') or ''),
+            }))
+    return results
 
 
 def _read_first_column(path: Path) -> List[str]:
@@ -447,32 +790,59 @@ def _looks_like_table(path: Path) -> bool:
         not any(word in low for word in ('series_matrix', 'soft', 'readme', 'metadata'))
 
 
-def _read_table_matrix(path: Path):
+def _read_table_matrix(path: Path, chunk_rows: int = 8192):
     """读 CSV/TSV 表达矩阵（第一列是细胞 ID，其余数值列是基因）。
 
     GEO 上大量经典数据集（例如 Baron 胰腺）就是这种格式，而不是 10x 三件套。
+
+    **内存**：旧实现一次性把整张表读成 float64 DataFrame，再 astype(float32)
+    再 to_numpy 再转稀疏，峰值约为 4.5 倍稠密体积。GSE72857 的 27297×10368
+    表因此在本机实测触发 MemoryError（连 213 KiB 的小数组都分配不出来）。
+    现在改为：先读少量行判定列类型 -> 分块读取基因列并即时转稀疏 -> 纵向拼装，
+    峰值只与「块大小 × 基因数」和最终 nnz 有关。
     """
     import anndata as ad
     import pandas as pd
     from scipy import sparse
     sep = ',' if '.csv' in path.name.lower() else '\t'
-    frame = pd.read_csv(path, sep=sep, index_col=0, low_memory=False)
-    if frame.shape[0] < 2 or frame.shape[1] < 2:
+    try:
+        head = pd.read_csv(path, sep=sep, index_col=0, nrows=200, low_memory=False)
+    except Exception:
         return None
-    obs_cols = [c for c in frame.columns
-                if str(c).lower() in META_COLUMNS or not pd.api.types.is_numeric_dtype(frame[c])]
-    gene_cols = [c for c in frame.columns if c not in obs_cols]
+    if head.shape[0] < 2 or head.shape[1] < 2:
+        return None
+    obs_cols = [c for c in head.columns
+                if str(c).lower() in META_COLUMNS or not pd.api.types.is_numeric_dtype(head[c])]
+    gene_cols = [c for c in head.columns if c not in obs_cols]
     if len(gene_cols) < 10:
         return None
-    matrix = frame[gene_cols].apply(pd.to_numeric, errors='coerce').fillna(0.0).astype(np.float32)
-    adata = ad.AnnData(X=sparse.csr_matrix(matrix.to_numpy()),
-                       obs=pd.DataFrame(index=pd.Index(frame.index.astype(str), dtype=str)),
-                       var=pd.DataFrame(index=pd.Index([str(g) for g in gene_cols], dtype=str)))
-    for column in obs_cols:
-        try:
-            adata.obs[str(column)] = frame[column].astype(str).to_numpy()
-        except Exception:
+    blocks = []
+    cell_ids = []
+    for chunk in pd.read_csv(path, sep=sep, index_col=0,
+                             chunksize=max(512, int(chunk_rows)), low_memory=False):
+        if gene_cols[0] not in chunk.columns:
             continue
+        cell_ids.extend([str(item) for item in chunk.index])
+        values = (chunk[gene_cols]
+                  .apply(pd.to_numeric, errors='coerce')
+                  .fillna(0.0)
+                  .to_numpy(dtype=np.float32))
+        blocks.append(sparse.csr_matrix(values))
+    if not blocks:
+        return None
+    matrix = blocks[0] if len(blocks) == 1 else sparse.vstack(blocks, format='csr')
+    adata = ad.AnnData(X=matrix,
+                       obs=pd.DataFrame(index=pd.Index(cell_ids, dtype=str)),
+                       var=pd.DataFrame(index=pd.Index([str(g) for g in gene_cols], dtype=str)))
+    if obs_cols:
+        try:
+            meta = pd.read_csv(path, sep=sep, index_col=0, usecols=[index_name] + obs_cols
+                               if index_name else obs_cols, low_memory=False)
+            for column in obs_cols:
+                if column in meta.columns:
+                    adata.obs[str(column)] = meta[column].astype(str).to_numpy()
+        except Exception:
+            pass
     adata.var_names_make_unique()
     adata.obs_names_make_unique()
     return adata
@@ -548,7 +918,9 @@ def geo_fetch(gse: str, outdir: Path, progress: Optional[Callable[[str], None]] 
         raise PublicDataError('GEO 只接受 GSE 系列编号，例如 GSE84133')
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
-    workdir = Path(tempfile.mkdtemp(prefix=f'cellflow_geo_{gse}_'))
+    # P3-02：解压/转换的大文件必须落在用户数据根目录下的 staging，
+    # 不能落到系统盘 %TEMP%（默认在 C 盘）。
+    workdir = paths.make_workdir(f'cellflow_geo_{gse}_', kind='conversion')
 
     def say(message):
         if progress:
@@ -631,16 +1003,6 @@ def geo_fetch(gse: str, outdir: Path, progress: Optional[Callable[[str], None]] 
         if dropped:
             say('该数据集包含多个物种，只保留 ' + keep + '；已忽略：' +
                 '，'.join(f'{k}({v} 个样本)' for k, v in dropped.items()))
-            try:
-                meta_path = Path(out).with_name(Path(out).name + '.meta.json')
-                meta_path.write_text(json.dumps({
-                    'species_kept': keep,
-                    'species_dropped': {key: int(value) for key, value in dropped.items()},
-                    'samples_total': int(len(collected)),
-                    'samples_kept': int(len(kept)),
-                }, ensure_ascii=False, indent=2), encoding='utf-8')
-            except Exception:
-                pass
 
         say(f'共 {len(adatas)} 个样本，开始合并')
         if len(adatas) == 1:
@@ -658,6 +1020,19 @@ def geo_fetch(gse: str, outdir: Path, progress: Optional[Callable[[str], None]] 
             merged.uns['cellflow_public']['dropped_species'] = dropped
         out = outdir / f'geo_{gse}.h5ad'
         merged.write_h5ad(out)
+        # 修复：旧代码在 out 赋值前引用它（UnboundLocalError 被 except 吞掉），
+        # 导致「多物种只保留一组」的元数据从未真正写出。
+        if dropped:
+            try:
+                meta_path = out.with_name(out.name + '.meta.json')
+                meta_path.write_text(json.dumps({
+                    'species_kept': keep,
+                    'species_dropped': {key: int(value) for key, value in dropped.items()},
+                    'samples_total': int(len(collected)),
+                    'samples_kept': int(len(kept)),
+                }, ensure_ascii=False, indent=2), encoding='utf-8')
+            except Exception:
+                pass
         say(f'已保存 {out}')
         return [out]
     finally:
@@ -757,14 +1132,182 @@ def fetch(source: str, identifier: str, outdir: Path,
     """下载并转成标准 h5ad，返回文件路径。"""
     source = (source or '').lower()
     if source == 'geo':
-        paths = geo_fetch(identifier, outdir, progress)
+        outputs = geo_fetch(identifier, outdir, progress)
     elif source in ('cellxgene', 'cxg'):
-        paths = cellxgene_fetch(identifier, outdir, progress, species)
+        outputs = cellxgene_fetch(identifier, outdir, progress, species)
     elif source == 'url':
-        paths = url_fetch(identifier, outdir, progress)
+        outputs = url_fetch(identifier, outdir, progress)
     else:
         raise PublicDataError(f'未知来源：{source}（可用：{", ".join(SOURCES)}）')
-    return Path(paths[0])
+    return Path(outputs[0])
+
+
+
+
+# ---------------------------------------------------------------- P3-01 下载
+def _read_loom_gz(local: Path, workdir: Path):
+    """读取 .loom.gz：在数据根 staging 里解压后交给 loom 读取器。
+
+    解压产生的 .loom 与压缩包同量级，必须落在 staging（P3-02），
+    不能写 %TEMP%。调用方负责清理 workdir。
+    """
+    import anndata as ad
+    local = Path(local)
+    target = Path(workdir) / (local.name[:-3] if local.name.lower().endswith('.gz') else local.name + '.loom')
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(local, 'rb') as source, open(target, 'wb') as sink:
+        shutil.copyfileobj(source, sink, length=1024 * 1024)
+        if _cancelled():
+            raise DownloadCancelled('用户取消下载')
+    if target.stat().st_size == 0:
+        raise PublicDataError('loom.gz 解压后为空，文件可能已损坏')
+    return [(local.name[:60], ad.read_loom(str(target)))]
+
+
+def _items_from_file(name: str, local: Path, workdir: Path, soft: Dict[str, Dict[str, str]]):
+    """把一个已下载文件解析成 [(样本名, AnnData)]；返回 (items, 错误说明)。"""
+    import anndata as ad
+    target_dir = Path(workdir) / (name + '_x')
+    try:
+        low = name.lower()
+        if low.endswith(('.tar', '.tar.gz', '.tgz', '.zip')):
+            _extract_archive(local, target_dir)
+            items = _load_all_matrices(target_dir)
+        elif low.endswith('.loom.gz'):
+            items = _read_loom_gz(local, target_dir)
+        elif low.endswith('.loom'):
+            items = [(Path(name).stem, ad.read_loom(str(local)))]
+        elif low.endswith('.h5ad'):
+            items = [(Path(name).stem, ad.read_h5ad(local))]
+        elif low.endswith('.h5'):
+            import scanpy as sc
+            items = [(Path(name).stem, sc.read_10x_h5(str(local)))]
+        elif _looks_like_table(local):
+            items = [(Path(name).stem, _read_table_matrix(local))]
+        else:
+            items = _load_all_matrices(Path(workdir))
+    except DownloadCancelled:
+        raise
+    except MemoryError:
+        return [], ('MemoryError: 解析这个文件所需内存超过本机可用内存。'
+                    '请改用该研究提供的 .h5ad/.loom，或在大内存机器上转换后再导入。')
+    except Exception as exc:
+        return [], f'{type(exc).__name__}: {exc}'
+    return [(n, a) for n, a in items if a is not None], ''
+
+
+def _series_soft(gse: str, workdir: Path) -> Dict[str, Dict[str, str]]:
+    try:
+        soft_path = Path(workdir) / f'{gse}_family.soft.gz'
+        download_file(geo_soft_url(gse), soft_path)
+        with gzip.open(soft_path, 'rt', encoding='utf-8', errors='replace') as handle:
+            return _parse_soft(handle.read())
+    except DownloadCancelled:
+        raise
+    except Exception:
+        return {}
+
+
+def geo_fetch_selected(gse: str, urls: List[str], outdir: Path,
+                       progress: Optional[Callable[[str], None]] = None,
+                       verify_sizes: bool = True) -> List[Path]:
+    """只下载用户明确选中的补充文件（P3-01 的核心）。
+
+    与 geo_fetch 的区别：**不遍历整个 Series**，只处理传入的 URL 列表。
+    返回可导入的 h5ad 路径列表；单个文件对应一个 h5ad，多个文件按样本合并。
+    """
+    import anndata as ad
+    gse = (gse or '').strip().upper()
+    if not re.match(r'^GSE\d{3,}$', gse):
+        raise PublicDataError('GEO 只接受 GSE 系列编号，例如 GSE84133')
+    chosen = [str(u).strip() for u in (urls or []) if str(u).strip()]
+    if not chosen:
+        raise PublicDataError('没有选择任何文件：请先在文件清单里勾选要下载的文件。')
+    outdir = Path(outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    def say(message):
+        if progress:
+            progress(message)
+
+    # 下载前按已知大小做一次总空间预检查（避免下到一半才发现空间不足）
+    known = [geo_exact_size(url) for url in chosen] if verify_sizes else []
+    total = sum(size for size in known if size)
+    if total:
+        paths.ensure_free_space(outdir, total, label=f'{gse} 的 {len(chosen)} 个文件')
+
+    workdir = paths.make_workdir(f'cellflow_geo_{gse}_sel', kind='conversion')
+    try:
+        soft = _series_soft(gse, workdir)
+        collected = []
+        failures = []
+        for url in chosen:
+            name = url.rstrip('/').split('/')[-1]
+            say(f'下载 {name}')
+            local = workdir / name
+            try:
+                download_file(url, local)
+            except DownloadCancelled:
+                raise
+            except Exception as exc:
+                failures.append({'file': name, 'stage': 'download',
+                                 'error': f'{type(exc).__name__}: {exc}'})
+                say(f'下载失败 {name}：{exc}')
+                continue
+            items, error = _items_from_file(name, local, workdir, soft)
+            if not items:
+                failures.append({'file': name, 'stage': 'parse', 'error': error or '没有可识别的表达矩阵'})
+                say(f'跳过 {name}：{error or "没有可识别的表达矩阵"}')
+                continue
+            for item_name, adata in items:
+                collected.append((item_name, adata, _sample_species(item_name, soft)))
+        if not collected:
+            detail = '；'.join(f"{f['file']}（{f['stage']}）：{f['error']}" for f in failures) or '没有可用文件'
+            raise PublicDataError(f'{gse} 选中的文件无法导入：{detail}')
+
+        by_species: Dict[str, List] = {}
+        for item in collected:
+            by_species.setdefault(item[2] or 'unknown', []).append(item)
+        keep = max(by_species, key=lambda key: sum(int(a.n_obs) for _, a, _ in by_species[key]))
+        kept = by_species[keep]
+        names = [item[0] for item in kept]
+        adatas = [item[1] for item in kept]
+        species = '' if keep == 'unknown' else keep
+
+        stem = Path(chosen[0]).name
+        for suffix in ('.loom.gz', '.h5ad', '.loom', '.h5', '.mtx.gz', '.txt.gz', '.csv', '.tsv', '.gz'):
+            if stem.lower().endswith(suffix):
+                stem = stem[: -len(suffix)]
+                break
+        stem = re.sub(r'[^A-Za-z0-9._-]+', '_', stem)[:60]
+        say(f'共 {len(adatas)} 个样本，开始合并')
+        if len(adatas) == 1:
+            merged = adatas[0]
+            merged.obs['sample_id'] = names[0]
+        else:
+            merged = ad.concat(adatas, join='outer', label='sample_id',
+                               keys=names, index_unique='-', merge='same')
+        merged.var_names_make_unique()
+        merged.obs_names_make_unique()
+        merged = standardize(merged, 'geo', gse, species=species)
+        out = outdir / f'geo_{gse}_{stem}.h5ad'
+        merged.write_h5ad(out)
+        try:
+            meta_path = out.with_name(out.name + '.meta.json')
+            meta_path.write_text(json.dumps({
+                'selected_files': [Path(u).name for u in chosen],
+                'downloaded_files': [Path(u).name for u in chosen if Path(u).name not in
+                                     {f['file'] for f in failures if f['stage'] == 'download'}],
+                'failures': failures,
+                'file_sizes': {Path(u).name: size for u, size in zip(chosen, known) if size},
+                'selection_source': 'user_selected',
+            }, ensure_ascii=False, indent=2), encoding='utf-8')
+        except Exception:
+            pass
+        say(f'已保存 {out}')
+        return [out]
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
 
 
 def describe(path: Path) -> Dict[str, object]:

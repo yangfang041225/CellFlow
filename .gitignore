@@ -22,6 +22,9 @@ web/dist/
 # 单元测试的临时编译输出（npm test 生成）
 web/.tmp-test/
 
+# 下载中的半成品（.part 只有校验完成后才会改名）
+*.part
+
 # 临时文件与本地备份
 .tmp/
 tmp*/

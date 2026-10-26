@@ -83,7 +83,13 @@ def _public_root(outdir):
 
 
 def _default_outdir():
-    return Path(__file__).resolve().parents[1] / 'data' / 'public'
+    """默认发布目录。
+
+    P3-02：走用户选定的数据根；若旧布局 <root>/data/public 已存在，
+    paths.datasets_dir() 会继续返回它，保证已登记数据集的路径不变。
+    """
+    from . import paths
+    return paths.datasets_dir()
 
 
 def submit(source, identifier, outdir, fetch_func=None, project=None):
